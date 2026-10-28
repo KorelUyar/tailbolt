@@ -16,8 +16,8 @@ payload that directly follows a `chunk` message (exactly `n` raw bytes).
 ## Control connection
 
 ```
-C → S  {"t":"hello","v":2,"name":"Saras Mac mini","os":"macOS","app":"2.0","caps":["lz4","lan"]}
-S → C  {"t":"hello","v":2,"name":"MacBook Pro","os":"macOS","app":"2.0","caps":["lz4","lan"]}
+C → S  {"t":"hello","v":2,"name":"Saras Mac mini","os":"macOS","app":"2.2","caps":["lz4","lan","note"]}
+S → C  {"t":"hello","v":2,"name":"MacBook Pro","os":"macOS","app":"2.2","caps":["lz4","lan","note"]}
 ```
 
 A probe stops here (`{"t":"bye"}` + close). To send, the client continues:
@@ -26,8 +26,13 @@ A probe stops here (`{"t":"bye"}` + close). To send, the client continues:
 C → S  {"t":"offer","id":"<uuid>","total":123,"chunk":16777216,
         "items":[{"p":"Folder","s":0,"d":true,"m":1730000000.0},
                  {"p":"Folder/a.bin","s":123,"d":false,"m":1730000000.0,"x":true},
-                 {"p":"Folder/link","s":0,"d":false,"l":"a.bin"}]}
+                 {"p":"Folder/link","s":0,"d":false,"l":"a.bin"}],
+        "note":"Slides for Monday"}                  // optional, 2.2+
 ```
+
+`note` is the sender's message for the request card: at most 500 characters and 4 line breaks; both ends
+strip control and bidi-override characters (`Tailbolt.sanitizedNote`) and the receiver shows it as plain
+text. Peers that do not list `"note"` in their caps (2.0/2.1) ignore the field.
 
 Item fields: `p` relative path with `/` (no leading `/`, no `.`/`..`/empty components),
 `s` size, `d` directory, `m` mtime (unix seconds, optional), `x` executable (optional),

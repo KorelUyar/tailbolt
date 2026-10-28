@@ -428,3 +428,10 @@
 "Can’t write to %@" = "Schreibfehler bei %@";
 "Data corrupted (LZ4)" = "Daten beschädigt (LZ4)";
 "Write error: %@" = "Schreibfehler: %@";
+"Add a note…" = "Notiz hinzufügen…";
+"Note for the recipient" = "Notiz für die empfangende Person";
+"Remove note" = "Notiz entfernen";
+"A short message the recipient sees before accepting. ⇥ to type, ↩ when done." = "Eine kurze Nachricht, die die andere Person vor dem Annehmen sieht. ⇥ zum Schreiben, ↩ wenn fertig.";
+"Sender’s note: %@" = "Notiz: %@";
+"Cut for Friday – music still missing" = "Schnitt für Freitag – Musik fehlt noch";
+"Here’s the export for Monday’s pitch. The logo is the new one, please check it 🙏" = "Hier der Export für den Pitch am Montag. Das Logo ist das neue, schau es dir bitte an 🙏";

@@ -19,6 +19,7 @@ enum Snapshot {
         // Shelf with a transfer running to the first device; the same send is the popover's "Recent" row.
         let shelf = ShelfModel()
         shelf.files = files
+        shelf.note = String(localized: "Cut for Friday – music still missing")
         if let d = devices.first {
             let t = TransferItem(direction: .outgoing, deviceID: d.id, peerName: d.name, peerSymbol: d.symbol, names: ["Video.mov"])
             t.totalBytes = 4_200_000_000; t.bytes = 1_700_000_000; t.state = .transferring; t.speed = 112_000_000
@@ -29,6 +30,7 @@ enum Snapshot {
         let waiting = TransferItem(direction: .incoming, deviceID: nil, peerName: "Noah’s MacBook Pro", peerSymbol: "laptopcomputer",
                                    names: ["Project Export", "notes.pdf", "logo.png"])
         waiting.totalBytes = 2_400_000_000; waiting.state = .waiting; waiting.awaitingDecision = true
+        waiting.note = String(localized: "Here’s the export for Monday’s pitch. The logo is the new one, please check it 🙏")
         let running = TransferItem(direction: .incoming, deviceID: nil, peerName: "Sara’s MacBook Pro", peerSymbol: "laptopcomputer",
                                    names: ["Vacation 2026"])
         running.totalBytes = 18_000_000_000; running.bytes = 6_300_000_000; running.state = .transferring; running.speed = 240_000_000

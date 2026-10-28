@@ -107,7 +107,7 @@ public final class TailboltServer {
         let t = IncomingTransfer(id: id, items: items, chunkSize: offer.chunk ?? Tailbolt.maxChunkSize,
                                  senderName: hello.name ?? control.remoteAddress, remoteAddress: control.remoteAddress,
                                  control: control, lanFastPath: lanFastPathEnabled && (hello.caps ?? []).contains("lan"),
-                                 bench: bench)
+                                 bench: bench, note: offer.note)
         lock.lock(); transfers[id] = t; lock.unlock()
         defer { lock.lock(); transfers.removeValue(forKey: id); lock.unlock() }
         if bench {
@@ -124,6 +124,8 @@ public final class IncomingTransfer: TransferBase {
     public let remoteAddress: String
     public let receivedAt = Date()
     public let isBench: Bool
+    /// The sender's message, already sanitized (nil when there is none or the sender runs 2.0).
+    public let note: String?
     public private(set) var savedURLs: [URL] = []
 
     private let control: Socket
@@ -141,8 +143,9 @@ public final class IncomingTransfer: TransferBase {
     private(set) var sessionKey: SessionKey?
 
     init(id: String, items: [WireItem], chunkSize: Int64, senderName: String, remoteAddress: String, control: Socket,
-         lanFastPath: Bool, bench: Bool = false) {
+         lanFastPath: Bool, bench: Bool = false, note: String? = nil) {
         self.senderName = senderName
+        self.note = bench ? nil : Tailbolt.sanitizedNote(note)
         self.remoteAddress = remoteAddress
         self.control = control
         self.chunkSize = max(1 << 20, min(chunkSize, 256 << 20))

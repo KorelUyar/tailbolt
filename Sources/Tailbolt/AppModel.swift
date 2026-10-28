@@ -79,6 +79,8 @@ final class TransferItem: Identifiable {
         }
     }
     var savedURLs: [URL] = []
+    /// The sender's message: typed in the shelf (outgoing) or shown on the request card (incoming).
+    var note: String?
     var awaitingDecision = false
     var dismissed = false
     var createdAt = Date()
@@ -482,11 +484,13 @@ final class AppModel {
     }
 
     @discardableResult
-    func send(_ urls: [URL], to device: Device) -> TransferItem {
+    func send(_ urls: [URL], to device: Device, note: String? = nil) -> TransferItem {
         Settings.shared.noteUsed(device.id, name: device.name)
         rememberPayload(urls, to: device)
         let item = TransferItem(direction: .outgoing, deviceID: device.id, peerName: device.name,
                                 peerSymbol: device.symbol, names: urls.map(\.lastPathComponent))
+        let note = Tailbolt.sanitizedNote(note)
+        item.note = device.viaTaildrop ? nil : note   // Taildrop has no place for a message
         item.sourceURLs = urls
         item.onEnd = { ClipboardPackager.release(urls) }
         transfers.insert(item, at: 0)
@@ -521,6 +525,7 @@ final class AppModel {
                 let t = try OutgoingTransfer(host: host, urls: urls, myName: name)
                 t.peerLANHint = lanHint
                 t.compressionEnabled = compress
+                t.note = note
                 await MainActor.run {
                     guard !item.state.isTerminal else { return }
                     item.outgoing = t
@@ -564,6 +569,7 @@ final class AppModel {
                                 peerSymbol: DeviceSymbol.for(os: peer?.os ?? "macOS", name: name),
                                 names: t.topLevelNames)
         item.incoming = t
+        item.note = t.note
         item.totalBytes = t.totalBytes
         item.state = .waiting
         transfers.insert(item, at: 0)

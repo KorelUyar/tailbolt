@@ -3,7 +3,7 @@ import Foundation
 public enum Tailbolt {
     public static let defaultPort: UInt16 = 48484
     public static let protocolVersion = 2
-    public static let appVersion = "2.1"
+    public static let appVersion = "2.2"
     static let maxChunkSize: Int64 = 16 << 20
     static let ioBufferSize = 4 << 20
     /// Parallel TCP streams through the tailnet and (when both ends share a LAN) directly over it.
@@ -13,7 +13,34 @@ public enum Tailbolt {
     /// Files at least this big are read/written uncached so multi-GB transfers don't evict everything else.
     static let noCacheThreshold: Int64 = 64 << 20
     /// Capabilities announced in hello; a sender only uses what the receiver listed.
-    static var capabilities: [String] { (LZ4.available ? ["lz4"] : []) + ["lan"] }
+    static var capabilities: [String] { (LZ4.available ? ["lz4"] : []) + ["lan", "note"] }
+
+    /// Longest note a sender may attach (characters); receivers cut anything longer.
+    public static let maxNoteLength = 500
+
+    /// What a note may contain: trimmed, no control characters except line breaks (max 4 of them), at most
+    /// `maxNoteLength` characters. Empty → nil. Used on both ends, so a hostile sender can't paint the card.
+    public static func sanitizedNote(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        var lines = 0
+        var out = String.UnicodeScalarView()
+        for scalar in raw.unicodeScalars {
+            if scalar == "\n" {
+                lines += 1
+                if lines <= 4 { out.append(scalar) } else { out.append(" ") }
+            } else if scalar == "\t" {
+                out.append(" ")
+            } else if CharacterSet.controlCharacters.contains(scalar) || (0x202A...0x202E).contains(scalar.value)
+                        || (0x2066...0x2069).contains(scalar.value) {
+                continue   // drop control and bidi-override characters
+            } else {
+                out.append(scalar)
+            }
+        }
+        var note = String(out).trimmingCharacters(in: .whitespacesAndNewlines)
+        if note.count > maxNoteLength { note = String(note.prefix(maxNoteLength)) + "…" }
+        return note.isEmpty ? nil : note
+    }
 
     /// Human-readable reasons travel between peers in English; show them in our language when the phrase is known
     /// (the English text is the key in Localizable.strings), otherwise as received.
@@ -64,6 +91,7 @@ public struct Msg: Codable {
     public var lan: [String]?       // accept: receiver's LAN IPv4 addresses; data: true-ish marker via `ci`
     public var ci: Int?             // data: connection index (LAN connections derive their key from it)
     public var bench: Bool?         // offer: throughput test — receiver discards the bytes, nothing is asked
+    public var note: String?        // offer: the sender's message ("Here are the slides for Monday"); 2.1+, ignored by 2.0
     public var nonce: String?       // lan-hello / lan-ok handshake
     // chunk / ack
     public var f: Int?
@@ -164,6 +192,8 @@ public struct HelloInfo: Hashable, Sendable {
 
     public var supportsLAN: Bool { caps.contains("lan") }
     public var supportsLZ4: Bool { caps.contains("lz4") }
+    /// Shows notes on its request card (Tailbolt 2.1+).
+    public var supportsNotes: Bool { caps.contains("note") }
 }
 
 public enum Probe {

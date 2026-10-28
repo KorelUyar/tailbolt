@@ -674,6 +674,18 @@ struct TransferRow: View {
                     .font(.system(size: 10))
                     .foregroundStyle(stateColor)
                     .lineLimit(1)
+                if let note = item.note {
+                    // The message travels with the transfer: still readable in the history afterwards.
+                    Label {
+                        Text(verbatim: note)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    } icon: {
+                        Image(systemName: "text.bubble")
+                    }
+                    .labelStyle(NoteLabelStyle())
+                    .help(note)
+                }
                 if item.state == .transferring || item.state == .finishing {
                     Bar(value: item.taildrop != nil ? nil : item.fraction)
                         .padding(.top, 2)
@@ -747,7 +759,7 @@ struct TransferRow: View {
         } else if !item.isActive {
             HStack(spacing: 6) {
                 if item.direction == .outgoing, !item.sourceURLs.isEmpty, let device = app.devices.first(where: { $0.id == item.deviceID }) {
-                    Button { app.send(item.sourceURLs, to: device) } label: {
+                    Button { app.send(item.sourceURLs, to: device, note: item.note) } label: {
                         Image(systemName: "arrow.counterclockwise.circle.fill").foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
@@ -779,6 +791,20 @@ struct TransferRow: View {
         switch item.state {
         case .failed, .declined: return .red
         default: return .secondary
+        }
+    }
+}
+
+/// Small icon + one line of note text in transfer rows.
+struct NoteLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 4) {
+            configuration.icon
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(Color.accentColor)
+            configuration.title
+                .font(.system(size: 10.5))
+                .foregroundStyle(.primary.opacity(0.85))
         }
     }
 }

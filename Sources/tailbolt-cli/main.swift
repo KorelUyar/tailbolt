@@ -6,7 +6,8 @@ import TailboltCore
 func usage() -> Never {
     print("""
     tailbolt-cli peers                          list tailnet devices and whether they run Tailbolt
-    tailbolt-cli send <host[:port]> <paths...>  send files/folders
+    tailbolt-cli send [--note TEXT] <host[:port]> <paths...>
+                                                send files/folders, optionally with a note for the recipient
     tailbolt-cli bench <host[:port]> [MB]       throughput test (receiver discards the data)
     tailbolt-cli serve [--port N] [--dir PATH]  receive (auto-accepts everything)
     """)
@@ -43,6 +44,7 @@ final class ServeDelegate: TailboltServerDelegate {
     init(dir: URL) { self.dir = dir }
     func server(_ server: TailboltServer, didReceiveOffer transfer: IncomingTransfer) {
         print("Offer from \(transfer.senderName) [\(transfer.remoteAddress)]: \(transfer.topLevelNames.joined(separator: ", ")) (\(ByteFormat.string(transfer.totalBytes)))")
+        if let note = transfer.note { print("Note: \(note)") }
         let start = Date()
         let printer = Printer()
         transfer.onStateChange = { state in
@@ -61,6 +63,7 @@ final class ServeDelegate: TailboltServerDelegate {
     func server(_ server: TailboltServer, didSeeHello info: HelloInfo, from ip: String) {}
 }
 
+setvbuf(stdout, nil, _IOLBF, 0)   // line-buffered even when piped into a file (serve logs)
 var args = Array(CommandLine.arguments.dropFirst())
 guard let cmd = args.first else { usage() }
 args.removeFirst()
@@ -85,10 +88,13 @@ case "peers":
     rows.sorted().forEach { print($0) }
 
 case "send":
+    var note: String?
+    if args.first == "--note", args.count >= 2 { note = args[1]; args.removeFirst(2) }
     guard args.count >= 2 else { usage() }
     let (host, port) = hostPort(args[0])
     let urls = args.dropFirst().map { URL(fileURLWithPath: $0) }
     let t = try OutgoingTransfer(host: host, port: port, urls: urls, myName: myName)
+    t.note = note
     print("Sending \(t.items.count) item(s), \(ByteFormat.string(t.totalBytes)) to \(host):\(port)")
     let done = DispatchSemaphore(value: 0)
     var started = Date()

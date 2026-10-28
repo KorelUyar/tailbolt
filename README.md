@@ -57,7 +57,7 @@ Taildrop. Tailscale ACLs must allow TCP 48484 between the devices (the default p
 |---|---|
 | **⌃⌥⌘L** | *Zero UI.* Sends the Finder selection to the device you sent to last. A small HUD capsule shows progress → “✓ Sent”. |
 | **⌃⌥⌘1 … 9** | Same, to favorite 1…9 (right-click a device → *Set as Favorite*). |
-| **⌃⌥⌘B** | Shelf with the Finder selection, keyboard-driven: **1–9** send to the n-th device, **←/→ + ↩** pick one, **⎋** closes, **⌘O** adds files, **⌘⌫** empties it; hold **⌘** for digit hints. |
+| **⌃⌥⌘B** | Shelf with the Finder selection, keyboard-driven: **1–9** send to the n-th device, **←/→ + ↩** pick one, **⇥** writes a note, **⎋** closes, **⌘O** adds files, **⌘⌫** empties it; hold **⌘** for digit hints. |
 | **⌃⌥⌘V** | Shelf with the clipboard: files as they are, an image → `Bild <Datum>.png`, text/link → `.txt`. |
 | **Shake while dragging** | Drag files and wiggle the cursor → the shelf appears under the cursor (Dropover style). Drop onto a device to send right away, or park the files in the shelf. |
 | **Menu-bar icon** | Drop files on the icon → shelf below it. Click → devices, transfers, settings. |
@@ -70,6 +70,10 @@ Settings → Shortcuts. Direct send never ships your clipboard unseen: clipboard
 the shelf (one ↩), and anything a password manager marks as concealed is refused.
 
 ## Receiving
+
+**Notes.** Type a short message into the shelf (“Add a note…”, or press ⇥) and it travels with the files: the
+recipient reads it in a speech bubble on the request card before deciding, and it stays on the transfer in the
+history. `tailbolt send --note "…" <host> <files>` does the same from the terminal.
 
 A card appears top-right (*Accept / Decline*, ↩ / ⎋). Files from your own devices are accepted
 automatically; people you trust can be added to “Always accept from”. Everything lands in `~/Downloads`

@@ -102,6 +102,8 @@ public final class OutgoingTransfer: TransferBase {
     public var peerLANHint: String?
     /// Adaptive LZ4 on compressible chunks (still needs the receiver's "lz4" capability). Off = raw bytes only.
     public var compressionEnabled = true
+    /// Message shown to the recipient on the request card (set before `start()`).
+    public var note: String?
 
     private let myName: String
     private var sources: [String?] = []
@@ -183,6 +185,7 @@ public final class OutgoingTransfer: TransferBase {
             offer.total = totalBytes
             offer.chunk = chunkSize
             if isBench { offer.bench = true }
+            if !isBench { offer.note = Tailbolt.sanitizedNote(note) }
             try control.send(offer)
             setState(.waiting)
 

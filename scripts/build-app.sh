@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-VERSION="2.1"
+VERSION="2.2"
 BUILD="$(date +%Y%m%d%H%M)"
 # The macOS 27 SDK needs Xcode's SwiftUI macro plugin; the 26.5 SDK builds fine with the CLT alone.
 SDK="${TAILBOLT_SDK:-/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk}"

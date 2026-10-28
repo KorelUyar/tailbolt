@@ -379,6 +379,11 @@ struct IncomingCard: View {
                 }
             }
 
+            if let note = item.note {
+                NoteBubble(text: note)
+                    .padding(.leading, 54)   // under the name column, not the avatar
+            }
+
             if item.awaitingDecision {
                 decision
             } else if item.isActive {
@@ -553,8 +558,51 @@ struct IncomingCard: View {
 
     private var accessibilityText: String {
         var s = "\(item.peerName) \(stateLine). \(itemsLine)."
+        if let note = item.note { s += " " + String(localized: "Sender’s note: \(note)") }
         if item.awaitingDecision { s += " " + String(localized: "Press Return to accept, Escape to decline.") }
         return s
+    }
+}
+
+/// The sender's message on a request card: a soft speech bubble with a small tail towards the sender's name.
+/// The text is shown verbatim (no Markdown, no links) and can be selected and copied.
+struct NoteBubble: View {
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Image(systemName: "quote.opening")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(Color.accentColor)
+                .accessibilityHidden(true)
+            Text(verbatim: text)
+                .font(.system(size: 12.5))
+                .foregroundStyle(.primary)
+                .lineLimit(6)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(BubbleShape().fill(Color.accentColor.opacity(0.11)))
+        .overlay(BubbleShape().stroke(Color.accentColor.opacity(0.18), lineWidth: 0.5))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(String(localized: "Sender’s note: \(text)"))
+    }
+}
+
+/// Rounded rectangle with a little tail at the top left, like a chat bubble answering the line above.
+struct BubbleShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let r: CGFloat = 10, tail: CGFloat = 5
+        var p = Path()
+        p.addRoundedRect(in: rect, cornerSize: CGSize(width: r, height: r), style: .continuous)
+        p.move(to: CGPoint(x: rect.minX + 12, y: rect.minY + 0.5))
+        p.addLine(to: CGPoint(x: rect.minX + 14, y: rect.minY - tail))
+        p.addLine(to: CGPoint(x: rect.minX + 21, y: rect.minY + 0.5))
+        p.closeSubpath()
+        return p
     }
 }
 

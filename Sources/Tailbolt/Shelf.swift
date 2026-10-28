@@ -20,6 +20,10 @@ final class ShelfModel {
     var multiSelection: Set<String> = []
     /// The stack flying into a bubble right now (send-start animation).
     var fly: Fly?
+    /// Message for the recipient's request card; goes with every send from this shelf.
+    var note = ""
+    /// The note field has keyboard focus (⇥ focuses it, ↩ / ⎋ leave it). Mirrors the view's `@FocusState`.
+    var noteFocused = false
 
     struct Fly: Identifiable {
         let id = UUID()
@@ -42,7 +46,7 @@ final class ShelfModel {
     func send(to device: Device, urls: [URL]? = nil) {
         let list = urls ?? files
         guard !list.isEmpty else { return }
-        sent[device.id] = AppModel.shared.send(list, to: device)
+        sent[device.id] = AppModel.shared.send(list, to: device, note: note)
         multiSelection.remove(device.id)
         if !Motion.reduced, let first = list.first {
             let fly = Fly(deviceID: device.id, url: first)
@@ -235,8 +239,16 @@ final class ShelfController {
     private func handleKey(_ event: NSEvent) -> Bool {
         guard let panel, panel.isVisible, panel.isKeyWindow else { return false }
         // A held key auto-repeats: one press is one action, never one transfer per repeat.
-        guard !event.isARepeat else { return true }
         let flags = event.modifierFlags.intersection(KeyCombo.modifierMask)
+        // Typing a note: every key belongs to the text field, except ⎋ which leaves it (↩ is the field's onSubmit).
+        if model.noteFocused {
+            if Int(event.keyCode) == kVK_Escape {
+                model.noteFocused = false
+                return true
+            }
+            return false
+        }
+        guard !event.isARepeat else { return true }
         let devices = AppModel.shared.devices
         switch Int(event.keyCode) {
         case kVK_Escape:
@@ -257,6 +269,8 @@ final class ShelfController {
             } else if let first = devices.first {
                 model.selectedID = first.id
             }
+        case kVK_Tab where !model.files.isEmpty:
+            model.noteFocused = true
         case kVK_ANSI_A where flags == [.command]:
             withAnimation(Motion.spring(0.25, 0.7)) { model.multiSelection = Set(devices.map(\.id)) }
         case kVK_ANSI_O where flags == [.command]:
@@ -357,11 +371,15 @@ struct ShelfView: View {
     @State private var stackTargeted = false
     @State private var listExpanded = false
     @State private var hoverWork: DispatchWorkItem?
+    @FocusState private var noteFocused: Bool
 
     static let width: CGFloat = 320
     /// Header 28 + stack 140 + divider + devices 159 (two-line names, keycap and path capsule still clear the edge).
-    /// The multi-recipient pill gets its own 36 pt row above the devices, the relay hint a 32 pt line below them.
-    static func height(hint: Bool, pill: Bool = false) -> CGFloat { 328 + (pill ? 36 : 0) + (hint ? 32 : 0) }
+    /// The multi-recipient pill gets its own 36 pt row above the devices, the relay hint a 32 pt line below them,
+    /// the note field (only while files are parked) 36 pt under the stack.
+    static func height(hint: Bool, pill: Bool = false, note: Bool = false) -> CGFloat {
+        328 + (pill ? 36 : 0) + (hint ? 32 : 0) + (note ? 36 : 0)
+    }
 
     /// `expandedList` starts with the file list open instead of the thumbnail stack (used by --snapshot).
     init(model: ShelfModel, onClose: @escaping () -> Void, expandedList: Bool = false) {
@@ -378,11 +396,17 @@ struct ShelfView: View {
     var body: some View {
         let hint = activeHint
         let pill = !model.multiSelection.isEmpty
+        let note = !model.files.isEmpty
         VStack(spacing: 0) {
             header
             stack
                 .frame(height: 140)
                 .anchorPreference(key: ShelfAnchors.self, value: .bounds) { ["stack": $0] }
+            if note {
+                noteField
+                    .frame(height: 36, alignment: .top)
+                    .transition(.opacity)
+            }
             Divider().opacity(0.6).padding(.horizontal, 14)
             if pill {
                 // Its own row (not an overlay on the divider): the stack summary and the hover list stay clear of it.
@@ -398,7 +422,7 @@ struct ShelfView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .frame(width: Self.width, height: Self.height(hint: hint != nil, pill: pill))
+        .frame(width: Self.width, height: Self.height(hint: hint != nil, pill: pill, note: note))
         .glassSurface(cornerRadius: 20)
         .overlayPreferenceValue(ShelfAnchors.self) { anchors in
             GeometryReader { g in
@@ -410,12 +434,18 @@ struct ShelfView: View {
         }
         .animation(Motion.spring(0.3, 0.8), value: hint)
         .animation(Motion.spring(0.3, 0.75), value: model.multiSelection.isEmpty)
+        .animation(Motion.spring(0.3, 0.8), value: note)
         .onChange(of: hint != nil) { _, has in
-            ShelfController.shared.contentHeightChanged(Self.height(hint: has, pill: pill))
+            ShelfController.shared.contentHeightChanged(Self.height(hint: has, pill: pill, note: note))
         }
         .onChange(of: pill) { _, has in
-            ShelfController.shared.contentHeightChanged(Self.height(hint: hint != nil, pill: has), keepBottom: true)
+            ShelfController.shared.contentHeightChanged(Self.height(hint: hint != nil, pill: has, note: note), keepBottom: true)
         }
+        .onChange(of: note) { _, has in
+            ShelfController.shared.contentHeightChanged(Self.height(hint: hint != nil, pill: pill, note: has))
+        }
+        .onChange(of: model.noteFocused) { _, v in if noteFocused != v { noteFocused = v } }
+        .onChange(of: noteFocused) { _, v in if model.noteFocused != v { model.noteFocused = v } }
         .onChange(of: model.sent.values.map(\.state)) { _, _ in
             ShelfController.shared.transferEnded()
         }
@@ -467,6 +497,51 @@ struct ShelfView: View {
         }
         .padding(.horizontal, 12)
         .padding(.top, 10)
+    }
+
+    // MARK: note
+
+    /// "Add a note…" – what the recipient reads on the request card before accepting.
+    private var noteField: some View {
+        let active = noteFocused || !model.note.isEmpty
+        return HStack(spacing: 7) {
+            Image(systemName: active ? "text.bubble.fill" : "text.bubble")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(active ? Color.accentColor : Color.secondary)
+                .accessibilityHidden(true)
+            TextField("Add a note…", text: $model.note)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+                .focused($noteFocused)
+                .onSubmit { noteFocused = false }
+                .onChange(of: model.note) { _, v in
+                    if v.count > Tailbolt.maxNoteLength { model.note = String(v.prefix(Tailbolt.maxNoteLength)) }
+                }
+                .accessibilityLabel("Note for the recipient")
+            if !model.note.isEmpty {
+                Button {
+                    model.note = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .help("Remove note")
+                .accessibilityLabel("Remove note")
+            } else if !noteFocused {
+                KeyHintCap(glyph: "⇥")
+            }
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 28)
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
+            .fill(Color.primary.opacity(noteFocused ? 0.075 : 0.045)))
+        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+            .strokeBorder(noteFocused ? Color.accentColor.opacity(0.55) : Color.clear, lineWidth: 1))
+        .padding(.horizontal, 16)
+        .animation(Motion.ease(0.12), value: noteFocused)
+        .help("A short message the recipient sees before accepting. ⇥ to type, ↩ when done.")
     }
 
     // MARK: stack
