@@ -109,29 +109,32 @@ final class TransferItem: Identifiable {
     var isActive: Bool { !state.isTerminal }
 
     var title: String {
-        guard let first = names.first else { return "Dateien" }
-        return names.count == 1 ? first : "\(first) und \(names.count - 1) weitere"
+        guard let first = names.first else { return String(localized: "Files") }
+        let more = names.count - 1
+        return names.count == 1 ? first : String(localized: "\(first) and \(more) more")
     }
 
     var statusText: String {
         switch state {
-        case .preparing: return "Wird vorbereitet…"
-        case .waiting: return direction == .outgoing ? "Warten auf Annahme…" : "Möchte senden"
+        case .preparing: return String(localized: "Preparing…")
+        case .waiting: return direction == .outgoing ? String(localized: "Waiting for acceptance…") : String(localized: "Wants to send")
         case .transferring:
-            if taildrop != nil { return "Via Taildrop…" }
-            var s = "\(ByteFormat.string(bytes)) von \(ByteFormat.string(totalBytes))"
+            if taildrop != nil { return String(localized: "Via Taildrop…") }
+            let done = ByteFormat.string(bytes), total = ByteFormat.string(totalBytes)
+            var s = String(localized: "\(done) of \(total)")
             if speed > 0 {
                 s += " · \(ByteFormat.speed(speed))"
                 let remaining = Double(totalBytes - bytes) / speed
                 if remaining > 1 { s += " · " + Self.eta(remaining) }
             }
             return s
-        case .finishing: return "Wird abgeschlossen…"
+        case .finishing: return String(localized: "Finishing…")
         case .finished:
-            return direction == .outgoing ? "Gesendet · \(ByteFormat.string(totalBytes))" : "Empfangen · \(ByteFormat.string(totalBytes))"
-        case .declined(let r): return r.map { "Abgelehnt: \($0)" } ?? "Abgelehnt"
-        case .failed(let r): return "Fehler: \(r)"
-        case .cancelled(let r): return r ?? "Abgebrochen"
+            let size = ByteFormat.string(totalBytes)
+            return direction == .outgoing ? String(localized: "Sent · \(size)") : String(localized: "Received · \(size)")
+        case .declined(let r): return r.map { String(localized: "Declined: \($0)") } ?? String(localized: "Declined")
+        case .failed(let r): return String(localized: "Error: \(r)")
+        case .cancelled(let r): return r ?? String(localized: "Cancelled")
         }
     }
 
@@ -151,7 +154,8 @@ final class TransferItem: Identifiable {
     /// "noch 48 s", "noch 1:12 min", "noch 1:02 h" – whole seconds, in the style of the finished rows (`DurationFormat.seconds`).
     /// Every surface (shelf bubble, popover row, incoming card) shows the ETA through this.
     static func eta(_ seconds: Double) -> String {
-        "noch " + DurationFormat.seconds(max(1, seconds.rounded()))
+        let d = DurationFormat.seconds(max(1, seconds.rounded()))
+        return String(localized: "\(d) left")
     }
 
     func cancel() {
@@ -282,10 +286,10 @@ final class AppModel {
             let elapsed = now.timeIntervalSince(item.startedTransferringAt ?? now)
             var hint: String?
             if device.peer.path == .relay && !item.usesLAN {
-                hint = "Läuft über einen Relay-Server (UDP blockiert?) – deutlich langsamer als direkt."
+                hint = String(localized: "Running through a relay server (UDP blocked?) – much slower than direct.")
             } else if elapsed > 6, item.speed > 0, item.speed < 18_000_000, !item.usesLAN,
                       device.peer.path == .lan || device.peer.path == .direct {
-                hint = "Tailscale ist gerade ungewöhnlich langsam (macOS-Bug) – Tailscale beenden und neu starten hilft."
+                hint = String(localized: "Tailscale is unusually slow right now (macOS bug) – quitting and restarting Tailscale helps.")
             }
             if item.hint != hint { item.hint = hint }
         }
@@ -331,7 +335,7 @@ final class AppModel {
             return a.split(separator: ".").dropLast().joined(separator: ".") + ".23"
         }()
         let peers: [TailnetPeer] = [
-            .make(id: "demo-noah", hostName: "Noahs MacBook Pro", dnsName: "noahs-macbook-pro.example.ts.net",
+            .make(id: "demo-noah", hostName: "Noah’s MacBook Pro", dnsName: "noahs-macbook-pro.example.ts.net",
                   ips: ["100.101.1.1"], os: "macOS",
                   user: .make(id: 11, loginName: "noah@example.com", displayName: "Noah Meier"),
                   curAddr: "\(lanHost):41641", active: true),
@@ -341,13 +345,13 @@ final class AppModel {
                   curAddr: "203.0.113.7:41641"),
             .make(id: "demo-server", hostName: "home-server", dnsName: "home-server.example.ts.net",
                   ips: ["100.101.1.3"], os: "linux", isMine: true, relay: "fra", active: true),
-            .make(id: "demo-iphone", hostName: "Mein iPhone", dnsName: "mein-iphone.example.ts.net",
+            .make(id: "demo-iphone", hostName: "My iPhone", dnsName: "my-iphone.example.ts.net",
                   ips: ["100.101.1.4"], os: "iOS", isMine: true, taildropAvailable: true),
         ]
-        status = .make(selfName: "Saras MacBook Air",
+        status = .make(selfName: "Sara’s MacBook Air",
                        selfUser: .make(id: 10, loginName: "sara@example.com", displayName: "Sara Meier"),
                        selfIPs: ["100.101.1.9"], peers: peers, tailnetName: "example.ts.net")
-        cachedName = "Saras MacBook Air"
+        cachedName = "Sara’s MacBook Air"
         hasRefreshed = true
         tailscaleMissing = false
         let now = Date()
@@ -446,12 +450,12 @@ final class AppModel {
         guard let last = lastPayload else { return nil }
         let urls = last.existingURLs
         guard !urls.isEmpty else {
-            ToastController.shared.flash("Die Dateien von damals gibt es nicht mehr", symbol: "doc.questionmark", tone: .error, duration: 3)
+            ToastController.shared.flash(String(localized: "The original files no longer exist"), symbol: "doc.questionmark", tone: .error, duration: 3)
             return nil
         }
         if let device = devices.first(where: { $0.id == last.deviceID }) { return send(urls, to: device) }
         ShelfController.shared.show(at: nil, files: urls, keyboard: true)
-        ToastController.shared.flash("\(last.deviceName) ist nicht online", symbol: "wifi.slash", tone: .error, duration: 3)
+        ToastController.shared.flash(String(localized: "\(last.deviceName) is not online"), symbol: "wifi.slash", tone: .error, duration: 3)
         return nil
     }
 
@@ -490,7 +494,7 @@ final class AppModel {
 
         if device.viaTaildrop {
             if urls.contains(where: { (try? $0.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true }) {
-                item.state = .failed("Ordner gehen via Taildrop nicht – Tailbolt auf dem Gerät installieren")
+                item.state = .failed(String(localized: "Folders can’t be sent via Taildrop – install Tailbolt on the device"))
                 return item
             }
             item.totalBytes = urls.reduce(0) { $0 + Int64((try? $1.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0) }

@@ -7,7 +7,10 @@ import Glibc
 
 public struct SocketError: Error, CustomStringConvertible {
     public let message: String
-    public init(_ message: String) { self.message = message }
+    /// English text for the peer when this error is reported over the wire; `message` may be localized.
+    public let english: String
+    public init(_ message: String) { self.message = message; self.english = message }
+    public init(_ message: String, english: String) { self.message = message; self.english = english }
     static func errno(_ what: String) -> SocketError {
         SocketError("\(what): \(String(cString: strerror(Foundation.errno)))")
     }
@@ -35,7 +38,7 @@ extension ByteStream {
         var got = 0
         while got < count {
             let n = try recvSome(ptr + got, count - got)
-            if n == 0 { throw SocketError("Verbindung geschlossen") }
+            if n == 0 { throw SocketError(String(localized: "Connection closed")) }
             got += n
         }
     }
@@ -93,10 +96,10 @@ public final class Socket: ByteStream {
             let n = Darwin.writev(fd, &iov, Int32(iov.count))
             if n < 0 {
                 if Foundation.errno == EINTR { continue }
-                if Foundation.errno == EAGAIN || Foundation.errno == EWOULDBLOCK { throw SocketError("Zeitüberschreitung beim Senden") }
+                if Foundation.errno == EAGAIN || Foundation.errno == EWOULDBLOCK { throw SocketError(String(localized: "Timed out while sending")) }
                 throw SocketError.errno("send")
             }
-            if n == 0 { throw SocketError("Verbindung geschlossen") }
+            if n == 0 { throw SocketError(String(localized: "Connection closed")) }
             var left = n
             total -= n
             // Drop fully written parts, advance the partially written one.
@@ -121,11 +124,11 @@ public final class Socket: ByteStream {
         var res: UnsafeMutablePointer<addrinfo>?
         let rc = getaddrinfo(host, String(port), &hints, &res)
         guard rc == 0, let first = res else {
-            throw SocketError("Adresse \(host) nicht auflösbar")
+            throw SocketError(String(localized: "Can’t resolve address \(host)"))
         }
         defer { freeaddrinfo(res) }
 
-        var lastError = SocketError("Verbindung zu \(host) fehlgeschlagen")
+        var lastError = SocketError(String(localized: "Connection to \(host) failed"))
         var cur: UnsafeMutablePointer<addrinfo>? = first
         while let ai = cur {
             cur = ai.pointee.ai_next
@@ -142,9 +145,9 @@ public final class Socket: ByteStream {
                     var len = socklen_t(MemoryLayout<Int32>.size)
                     getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &len)
                     r = err == 0 ? 0 : -1
-                    if err != 0 { lastError = SocketError("Verbindung zu \(host): \(String(cString: strerror(err)))") }
+                    if err != 0 { lastError = SocketError(String(localized: "Connection to \(host): \(String(cString: strerror(err)))")) }
                 } else {
-                    lastError = SocketError("Zeitüberschreitung bei Verbindung zu \(host)")
+                    lastError = SocketError(String(localized: "Timed out connecting to \(host)"))
                     r = -1
                 }
             } else if r != 0 {
@@ -170,10 +173,10 @@ public final class Socket: ByteStream {
             let n = Darwin.send(fd, ptr + sent, count - sent, 0)
             if n < 0 {
                 if Foundation.errno == EINTR { continue }
-                if Foundation.errno == EAGAIN || Foundation.errno == EWOULDBLOCK { throw SocketError("Zeitüberschreitung beim Senden") }
+                if Foundation.errno == EAGAIN || Foundation.errno == EWOULDBLOCK { throw SocketError(String(localized: "Timed out while sending")) }
                 throw SocketError.errno("send")
             }
-            if n == 0 { throw SocketError("Verbindung geschlossen") }
+            if n == 0 { throw SocketError(String(localized: "Connection closed")) }
             sent += n
         }
     }
@@ -185,7 +188,7 @@ public final class Socket: ByteStream {
             if n < 0 {
                 if Foundation.errno == EINTR { continue }
                 if Foundation.errno == EAGAIN || Foundation.errno == EWOULDBLOCK {
-                    throw SocketError("Zeitüberschreitung")
+                    throw SocketError(String(localized: "Timed out"))
                 }
                 throw SocketError.errno("recv")
             }
@@ -246,7 +249,7 @@ public final class Listener {
             }
         }
         guard r == 0 else {
-            let e = SocketError.errno("Port \(port) belegt")
+            let e = SocketError.errno(String(localized: "Port \(String(port)) in use"))
             Darwin.close(fd)
             throw e
         }

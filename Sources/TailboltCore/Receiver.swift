@@ -91,7 +91,7 @@ public final class TailboltServer {
     private func handleOffer(_ offer: Msg, hello: Msg, control: Socket) {
         guard let id = offer.id, let items = offer.items, IncomingTransfer.validate(items) == nil else {
             var err = Msg(t: "decline")
-            err.reason = "Ungültiges Angebot"
+            err.reason = "Invalid offer"   // sent to the peer: English, localized there
             try? control.send(err)
             control.close()
             return
@@ -100,7 +100,7 @@ public final class TailboltServer {
         if bench {
             // A throughput test never touches disk and never asks; keep it small enough to be harmless.
             guard items.count == 1, !items[0].d, items[0].l == nil, items[0].s <= 512 << 20 else {
-                var err = Msg(t: "decline"); err.reason = "Ungültiger Test"
+                var err = Msg(t: "decline"); err.reason = "Invalid test"
                 try? control.send(err); control.close(); return
             }
         }
@@ -159,7 +159,7 @@ public final class IncomingTransfer: TransferBase {
     }
 
     public func decline(_ reason: String? = nil) {
-        lock.lock(); declineReason = reason ?? "Abgelehnt"; lock.unlock()
+        lock.lock(); declineReason = reason ?? "Declined"; lock.unlock()
         decision.signal()
     }
 
@@ -216,10 +216,10 @@ public final class IncomingTransfer: TransferBase {
         let started = Date()
         while decision.wait(timeout: .now() + 0.5) == .timedOut {
             if control.peerHasClosed() {
-                setState(.cancelled("Absender hat abgebrochen")); return
+                setState(.cancelled(String(localized: "The sender cancelled"))); return
             }
             if Date().timeIntervalSince(started) > 300 {
-                lock.lock(); declineReason = "Keine Antwort"; lock.unlock()
+                lock.lock(); declineReason = "No response"; lock.unlock()
                 break
             }
         }
@@ -227,9 +227,9 @@ public final class IncomingTransfer: TransferBase {
 
         lock.lock(); let reason = declineReason; let dest = destination; lock.unlock()
         guard let dest, reason == nil else {
-            var m = Msg(t: "decline"); m.reason = reason
+            var m = Msg(t: "decline"); m.reason = reason   // English on the wire
             try? control.send(m)
-            setState(.declined(reason))
+            setState(.declined(reason.map(Tailbolt.localizedReason)))
             control.close()
             return
         }
@@ -237,7 +237,7 @@ public final class IncomingTransfer: TransferBase {
         do {
             if !isBench { try prepare(in: dest) }
         } catch {
-            var m = Msg(t: "decline"); m.reason = "\(error)"
+            var m = Msg(t: "decline"); m.reason = Self.wireReason(error)
             try? control.send(m)
             setState(.failed("\(error)"))
             cleanup()
@@ -262,7 +262,7 @@ public final class IncomingTransfer: TransferBase {
         if chunkCount > 0 {
             while completion.wait(timeout: .now() + 0.5) == .timedOut {
                 if control.peerHasClosed() {
-                    setState(.cancelled("Absender hat abgebrochen")); break
+                    setState(.cancelled(String(localized: "The sender cancelled"))); break
                 }
             }
         }
@@ -276,7 +276,7 @@ public final class IncomingTransfer: TransferBase {
             try? control.send(Msg(t: "done"))
             setState(.finished)
         } catch {
-            var m = Msg(t: "error"); m.reason = "\(error)"
+            var m = Msg(t: "error"); m.reason = Self.wireReason(error)
             try? control.send(m)
             setState(.failed("\(error)"))
             cleanup()
@@ -284,12 +284,19 @@ public final class IncomingTransfer: TransferBase {
         control.close()
     }
 
+    /// What the peer gets to see for a local failure: the English text where we have one.
+    private static func wireReason(_ error: Error) -> String {
+        (error as? SocketError)?.english ?? "\(error)"
+    }
+
     private func prepare(in dest: URL) throws {
         let fm = FileManager.default
         try fm.createDirectory(at: dest, withIntermediateDirectories: true)
         if let free = try? dest.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
             .volumeAvailableCapacityForImportantUsage, free < fileBytes + (64 << 20) {
-            throw SocketError("Nicht genug Speicherplatz (\(ByteFormat.string(fileBytes)) benötigt)")
+            let size = ByteFormat.string(fileBytes)
+            throw SocketError(String(localized: "Not enough disk space (\(size) needed)"),
+                              english: "Not enough disk space (\(size) needed)")
         }
         let stage = dest.appendingPathComponent(".tailbolt-\(id)", isDirectory: true)
         try fm.createDirectory(at: stage, withIntermediateDirectories: true)
@@ -302,7 +309,7 @@ public final class IncomingTransfer: TransferBase {
             } else if item.l == nil {
                 try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
                 let fd = open(url.path, O_WRONLY | O_CREAT | O_TRUNC, 0o644)
-                guard fd >= 0 else { throw SocketError("Kann \(item.p) nicht anlegen") }
+                guard fd >= 0 else { throw SocketError(String(localized: "Can’t create \(item.p)"), english: "Can’t create \(item.p)") }
                 defer { close(fd) }
                 if item.s > 0 {
                     #if canImport(Darwin)
@@ -314,7 +321,7 @@ public final class IncomingTransfer: TransferBase {
                         _ = fcntl(fd, F_PREALLOCATE, &store)
                     }
                     #endif
-                    if ftruncate(fd, off_t(item.s)) != 0 { throw SocketError("Kann \(item.p) nicht anlegen") }
+                    if ftruncate(fd, off_t(item.s)) != 0 { throw SocketError(String(localized: "Can’t create \(item.p)"), english: "Can’t create \(item.p)") }
                 }
             }
         }
@@ -396,7 +403,7 @@ public final class IncomingTransfer: TransferBase {
             if f != fileIndex && !duplicate && !isBench {
                 if fd >= 0 { close(fd) }
                 fd = open(stage.appendingPathComponent(items[f].p).path, O_WRONLY)
-                guard fd >= 0 else { setState(.failed("Schreibfehler bei \(items[f].p)")); return }
+                guard fd >= 0 else { setState(.failed(String(localized: "Can’t write to \(items[f].p)"))); return }
                 if items[f].s >= Tailbolt.noCacheThreshold { fcntl(fd, F_NOCACHE, 1) }
                 fileIndex = f
             }
@@ -407,7 +414,7 @@ public final class IncomingTransfer: TransferBase {
                     try s.recvExact(packed!, Int(n))
                     if !duplicate {
                         guard LZ4.decompress(packed!, Int(n), into: raw, expected: Int(length)) else {
-                            setState(.failed("Daten beschädigt (LZ4)")); return
+                            setState(.failed(String(localized: "Data corrupted (LZ4)"))); return
                         }
                         guard isBench || write(fd, raw, Int(length), at: o) else { return }
                         addBytes(length, wire: n)
@@ -443,7 +450,8 @@ public final class IncomingTransfer: TransferBase {
             let w = pwrite(fd, buf + written, count - written, offset + Int64(written))
             if w < 0 {
                 if errno == EINTR { continue }
-                setState(.failed("Schreibfehler: \(String(cString: strerror(errno)))"))
+                let detail = String(cString: strerror(errno))
+                setState(.failed(String(localized: "Write error: \(detail)")))
                 return false
             }
             written += w

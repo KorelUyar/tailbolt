@@ -208,7 +208,7 @@ final class BenchModel {
             phase = .done(Result(bytes: t.totalBytes, seconds: seconds, usedLAN: sawLAN))
             finish()
         case .declined(let reason):
-            phase = .failed(reason ?? "Das Gerät hat den Test abgelehnt")
+            phase = .failed(reason ?? String(localized: "The device declined the test"))
             finish()
         case .failed(let reason):
             phase = .failed(reason)
@@ -269,7 +269,7 @@ struct AboutView: View {
         VStack(spacing: 0) {
             header
             Form {
-                Section("Dieses Gerät") {
+                Section("This device") {
                     LabeledContent("Name", value: app.myName)
                     LabeledContent("Tailnet", value: app.status?.tailnetName ?? "–")
                     LabeledContent("Tailscale") {
@@ -279,41 +279,41 @@ struct AboutView: View {
                         }
                         .accessibilityElement(children: .combine)
                     }
-                    LabeledContent("Tailscale-IP", value: app.status?.selfIPs.first ?? "–")
-                    LabeledContent("Empfang", value: "Port \(Tailbolt.defaultPort) (TCP)")
-                    LabeledContent("Protokoll", value: "Version \(Tailbolt.protocolVersion) · " + (LZ4.available ? "LZ4 · " : "") + "LAN-Turbo")
+                    LabeledContent("Tailscale IP", value: app.status?.selfIPs.first ?? "–")
+                    LabeledContent("Receiving", value: "Port \(Tailbolt.defaultPort) (TCP)")
+                    LabeledContent("Protocol", value: "Version \(Tailbolt.protocolVersion) · " + (LZ4.available ? "LZ4 · " : "") + String(localized: "LAN Turbo"))
                 }
 
                 Section {
                     if candidates.isEmpty {
-                        LabeledContent("Gerät") {
-                            Text("Kein Gerät mit Tailbolt online").foregroundStyle(.secondary)
+                        LabeledContent("Device") {
+                            Text("No device with Tailbolt online").foregroundStyle(.secondary)
                         }
                     } else {
-                        Picker("Gerät", selection: $target) {
+                        Picker("Device", selection: $target) {
                             ForEach(candidates) { d in
                                 Text(d.name).tag(d.id)
                             }
                         }
                         .disabled(bench.isRunning)
-                        .help("Gegenstelle für den Test")
+                        .help("Device to test against")
                     }
                     HStack(spacing: 12) {
                         benchStatus
                         Spacer(minLength: 12)
                         if bench.isRunning {
-                            Button("Abbrechen") { bench.cancel() }
+                            Button("Cancel") { bench.cancel() }
                         } else {
-                            Button("Testen") { startBench() }
+                            Button("Test") { startBench() }
                                 .disabled(candidates.first { $0.id == target } == nil)
-                                .help("128 MB an das gewählte Gerät senden und die Geschwindigkeit messen")
+                                .help("Send 128 MB to the selected device and measure the speed")
                         }
                     }
                     .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: bench.isRunning)
                 } header: {
-                    Text("Geschwindigkeit testen")
+                    Text("Speed test")
                 } footer: {
-                    SettingsFooter("Sendet \(ByteFormat.string(OutgoingTransfer.benchSize)) Zufallsdaten an das Gerät – dort wird nichts gespeichert. Das Ergebnis zeigt, was die Verbindung wirklich schafft: direkt oder per LAN-Turbo deutlich mehr als über ein Relay.")
+                    SettingsFooter(String(localized: "Sends \(ByteFormat.string(OutgoingTransfer.benchSize)) of random data to the device – nothing is saved there. The result shows what the connection can really do: direct or with LAN Turbo, far more than over a relay."))
                 }
             }
             .formStyle(.grouped)
@@ -326,12 +326,12 @@ struct AboutView: View {
         HStack(alignment: .center, spacing: 22) {
             AppIconView(size: 104)
             VStack(alignment: .leading, spacing: 3) {
-                Text("Tailbolt")
+                Text(verbatim: "Tailbolt")
                     .font(.system(size: 26, weight: .bold))
                 Text(Self.versionText)
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
-                Text("AirDrop für dein ganzes Tailnet.")
+                Text("AirDrop for your whole tailnet.")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
                     .padding(.top, 6)
@@ -340,7 +340,7 @@ struct AboutView: View {
                         Link("README", destination: url)
                             .help(url.absoluteString)
                     }
-                    Text("© 2026 Korel Uyar")
+                    Text(verbatim: "© 2026 Korel Uyar")
                         .foregroundStyle(.tertiary)
                 }
                 .font(.system(size: 11))
@@ -358,18 +358,18 @@ struct AboutView: View {
     private var benchStatus: some View {
         switch bench.phase {
         case .idle:
-            Text("Noch nicht getestet")
+            Text("Not tested yet")
                 .foregroundStyle(.secondary)
         case .connecting:
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small)
-                Text("Verbinde…").foregroundStyle(.secondary)
+                Text("Connecting…").foregroundStyle(.secondary)
             }
         case .running(let fraction, let speed):
             VStack(alignment: .leading, spacing: 4) {
                 ProgressView(value: fraction)
                     .frame(width: 220)
-                    .accessibilityLabel("Testfortschritt")
+                    .accessibilityLabel("Test progress")
                 Text("\(Int(fraction * 100)) %" + (speed > 0 ? " · \(ByteFormat.speed(speed))" : ""))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
@@ -380,8 +380,8 @@ struct AboutView: View {
                 Text(ByteFormat.speed(r.bytesPerSecond))
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .monospacedDigit()
-                PathCapsule(label: r.usedLAN ? "LAN-Turbo" : "Tunnel", tint: r.usedLAN ? .accentColor : .secondary, bolt: r.usedLAN)
-                    .help(r.usedLAN ? "Lief über direkte LAN-Verbindungen neben dem Tunnel" : "Lief nur durch den Tailscale-Tunnel")
+                PathCapsule(label: r.usedLAN ? String(localized: "LAN Turbo") : String(localized: "Tunnel"), tint: r.usedLAN ? .accentColor : .secondary, bolt: r.usedLAN)
+                    .help(r.usedLAN ? String(localized: "Went over direct LAN connections next to the tunnel") : String(localized: "Went only through the Tailscale tunnel"))
                 Text("\(ByteFormat.string(r.bytes)) in \(Self.seconds(r.seconds))")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
@@ -401,10 +401,10 @@ struct AboutView: View {
     }
 
     private var statusText: String {
-        if let e = app.serverError { return "Empfang nicht möglich: \(e)" }
-        if app.tailscaleMissing { return "Nicht installiert" }
-        guard let s = app.status else { return app.hasRefreshed ? "Nicht erreichbar" : "Verbinde…" }
-        return s.running ? "Verbunden" : "Gestoppt"
+        if let e = app.serverError { return String(localized: "Can’t receive: \(e)") }
+        if app.tailscaleMissing { return String(localized: "Not installed") }
+        guard let s = app.status else { return app.hasRefreshed ? String(localized: "Unreachable") : String(localized: "Connecting…") }
+        return s.running ? String(localized: "Connected") : String(localized: "Stopped")
     }
 
     private func pickDefaultTarget() {

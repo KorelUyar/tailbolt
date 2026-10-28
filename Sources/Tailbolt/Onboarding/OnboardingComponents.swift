@@ -19,76 +19,80 @@ enum OnboardingTokens {
     static let textWidth: CGFloat = 480
 }
 
-// MARK: - Copy (Swiss German, informal)
+// MARK: - Copy (English source; German lives in de.lproj/Localizable.strings)
 
 enum OnboardingStrings {
-    static let welcomeTitle = "Willkommen bei Tailbolt"
-    static let welcomeBody = "AirDrop für dein ganzes Tailnet. Dateien und Ordner in jeder Grösse – an jedes Gerät, auch an die von anderen."
-    static func welcomeStatusOK(_ tailnet: String, _ me: String) -> String { "Verbunden mit \(tailnet) als \(me)" }
-    static let welcomeStatusStopped = "Tailscale läuft, aber nicht verbunden"
-    static let welcomeStatusMissing = "Tailscale nicht gefunden"
-    static let welcomeStatusChecking = "Suche Tailscale…"
-    static let welcomeCTA = "Los geht's"
+    static let welcomeTitle = String(localized: "Welcome to Tailbolt")
+    static let welcomeBody = String(localized: "AirDrop for your whole tailnet. Files and folders of any size – to any device, including other people’s.")
+    static func welcomeStatusOK(_ tailnet: String, _ me: String) -> String { String(localized: "Connected to \(tailnet) as \(me)") }
+    static let welcomeStatusStopped = String(localized: "Tailscale is running but not connected")
+    static let welcomeStatusMissing = String(localized: "Tailscale not found")
+    static let welcomeStatusChecking = String(localized: "Looking for Tailscale…")
+    static let welcomeCTA = String(localized: "Get Started")
 
-    static let tailscaleTitle = "Tailbolt braucht Tailscale"
-    static let tailscaleBodyMissing = "Tailbolt schickt Dateien durch dein Tailnet – verschlüsselt und direkt. Installiere Tailscale, melde dich an, und Tailbolt findet deine Geräte von selbst."
-    static let tailscaleBodyStopped = "Tailscale ist installiert, aber nicht verbunden. Öffne Tailscale und melde dich an – diese Seite aktualisiert sich automatisch."
-    static let tailscaleDownload = "Tailscale laden"
-    static let tailscaleOpen = "Tailscale öffnen"
-    static let tailscaleNote = "Tailbolt funktioniert mit der Tailscale-App aus dem App Store und mit der Standalone-Version."
-    static let tailscaleConnectedTitle = "Verbunden"
-    static func tailscaleConnectedBody(_ me: String, _ tailnet: String) -> String { "Du bist als \(me) im Tailnet \(tailnet)." }
+    static let tailscaleTitle = String(localized: "Tailbolt needs Tailscale")
+    static let tailscaleBodyMissing = String(localized: "Tailbolt sends files through your tailnet – encrypted and direct. Install Tailscale, sign in, and Tailbolt finds your devices on its own.")
+    static let tailscaleBodyStopped = String(localized: "Tailscale is installed but not connected. Open Tailscale and sign in – this page updates automatically.")
+    static let tailscaleDownload = String(localized: "Download Tailscale")
+    static let tailscaleOpen = String(localized: "Open Tailscale")
+    static let tailscaleNote = String(localized: "Tailbolt works with both the App Store version of Tailscale and the standalone version.")
+    static let tailscaleConnectedTitle = String(localized: "Connected")
+    static func tailscaleConnectedBody(_ me: String, _ tailnet: String) -> String { String(localized: "You’re signed in as \(me) on the \(tailnet) tailnet.") }
 
-    static let sendTitle = "Schütteln. Ablegen. Weg."
-    static let sendBody = "Zieh Dateien aus dem Finder und schüttle den Cursor kurz hin und her – das Shelf erscheint genau dort, wo du bist. Lass die Dateien auf ein Gerät fallen oder parkiere sie im Shelf, bis du so weit bist."
-    static let sendNote = "Funktioniert in jeder App, nicht nur im Finder."
-    static let sendTry = "Zum Ausprobieren: zieh mich und schüttle"
-    static let sendTryDone = "Geschafft – das ist dein Shelf."
-    static let sendTryHint = "Du kannst es schliessen, wir machen weiter."
+    static let sendTitle = String(localized: "Shake. Drop. Done.")
+    static let sendBody = String(localized: "Drag files out of the Finder and give the pointer a quick shake – the Shelf appears right where you are. Drop the files on a device, or park them on the Shelf until you’re ready.")
+    static let sendNote = String(localized: "Works in any app, not just the Finder.")
+    static let sendTry = String(localized: "Try it: drag me and shake")
+    static let sendTryDone = String(localized: "Nice – that’s your Shelf.")
+    static let sendTryHint = String(localized: "You can close it now. Let’s keep going.")
 
-    static let devicesTitle = "Alle Geräte im Tailnet. Nicht nur deine."
-    static let devicesBody = "Tailbolt zeigt jedes Gerät in deinem Tailnet, auf dem Tailbolt läuft – auch die von Kolleginnen und Kollegen. Deine eigenen Geräte ohne Tailbolt, zum Beispiel dein iPhone, erreichst du über Taildrop."
-    static let devicesInvite = "Einladungslink kopieren"
-    static let devicesInviteDone = "Kopiert"
-    static let devicesNote = "Tailbolt muss auf dem anderen Gerät laufen."
-    static func devicesOnline(_ n: Int) -> String { n == 1 ? "1 Gerät mit Tailbolt gerade online" : "\(n) Geräte mit Tailbolt gerade online" }
-    static let devicesOnlineNone = "Noch kein Gerät mit Tailbolt online – schick den Link weiter."
-    static let calloutOther = ("Gerät einer anderen Person", "Avatar = Tailscale-Profilbild")
-    static let calloutTaildrop = ("Eigenes Gerät ohne Tailbolt", "wird via Taildrop geschickt")
-    static let calloutMine = ("Eigene Geräte sind grau", "Annahme automatisch")
+    static let devicesTitle = String(localized: "Every device in your tailnet. Not just yours.")
+    static let devicesBody = String(localized: "Tailbolt shows every device in your tailnet that’s running Tailbolt – including your colleagues’. Your own devices without Tailbolt, like your iPhone, are reached via Taildrop.")
+    static let devicesInvite = String(localized: "Copy Invite Link")
+    static let devicesInviteDone = String(localized: "Copied")
+    static let devicesNote = String(localized: "Tailbolt needs to be running on the other device.")
+    static func devicesOnline(_ n: Int) -> String {
+        n == 1 ? String(localized: "1 device with Tailbolt online now") : String(localized: "\(n) devices with Tailbolt online now")
+    }
+    static let devicesOnlineNone = String(localized: "No devices with Tailbolt online yet – pass the link on.")
+    static let calloutOther = (String(localized: "Someone else’s device"), String(localized: "Avatar = Tailscale profile picture"))
+    static let calloutTaildrop = (String(localized: "Your device without Tailbolt"), String(localized: "sent via Taildrop"))
+    static let calloutMine = (String(localized: "Your own devices are gray"), String(localized: "accepted automatically"))
 
-    static let receiveTitle = "Empfangen, ohne nachzudenken."
-    static let receiveBody = "Schickt dir jemand etwas, erscheint oben rechts eine Karte: Annehmen oder Ablehnen. Von deinen eigenen Geräten nimmt Tailbolt automatisch an. Alles landet in Downloads – Ordner bleiben Ordner, Datum und Rechte bleiben erhalten."
-    static let receiveAutoAccept = "Von meinen eigenen Geräten automatisch annehmen"
-    static let receiveSaveIn = "Speichern in"
-    static let receiveChange = "Ändern…"
-    static let receiveDemoBadge = "Automatisch angenommen"
+    static let receiveTitle = String(localized: "Receive without a second thought.")
+    static let receiveBody = String(localized: "When someone sends you something, a card appears in the top-right corner: Accept or Decline. Tailbolt accepts automatically from your own devices. Everything lands in Downloads – folders stay folders, dates and permissions are preserved.")
+    static let receiveAutoAccept = String(localized: "Accept automatically from my own devices")
+    static let receiveSaveIn = String(localized: "Save to")
+    static let receiveChange = String(localized: "Change…")
+    static let receiveDemoBadge = String(localized: "Accepted automatically")
 
-    static let shortcutsTitle = "Immer einen Griff entfernt."
-    static let shortcutsBody = "Shelf öffnen oder direkt senden – ein kleines HUD bestätigt."
-    static let shortcutHotkey = "Shelf mit der Finder-Auswahl öffnen"
-    static let shortcutClipboard = "Zwischenablage senden"
-    static let shortcutLast = "An das letzte Gerät senden"
-    static let shortcutFavorite = "An Favorit 1 bis 9 senden"
-    static let shortcutShake = "Beim Ziehen den Cursor schütteln"
-    static let shortcutShare = "Finder → Teilen → Tailbolt"
-    static let shortcutsChangeable = "Kürzel und Favoriten änderbar in den Einstellungen."
+    static let shortcutsTitle = String(localized: "Always within reach.")
+    static let shortcutsBody = String(localized: "Open the Shelf or send right away – a small HUD confirms.")
+    static let shortcutHotkey = String(localized: "Open the Shelf with the Finder selection")
+    static let shortcutClipboard = String(localized: "Send the clipboard")
+    static let shortcutLast = String(localized: "Send to the last device")
+    static let shortcutFavorite = String(localized: "Send to favorite 1 to 9")
+    static let shortcutShake = String(localized: "Shake the pointer while dragging")
+    static let shortcutShare = String(localized: "Finder → Share → Tailbolt")
+    static let shortcutsChangeable = String(localized: "Change shortcuts and favorites anytime in Settings.")
 
-    static let readyTitle = "Bereit zum Beamen."
-    static let readyBody = "Tailbolt läuft jetzt in der Menüleiste. Zwei Dinge noch, dann bist du startklar."
-    static let readyLogin = ("Beim Anmelden starten", "Damit du jederzeit empfangen kannst")
-    static let readyQuickAction = ("Schnellaktion im Finder", "«Mit Tailbolt senden» im Rechtsklick-Menü")
-    static let readyInstall = "Installieren"
-    static let readyInstalled = "Installiert"
-    static let readySoon = "Nach dem Start verfügbar"
-    static let readyNote = "Alles später änderbar in den Einstellungen. Diese Einführung findest du dort jederzeit wieder."
-    static func readyLiveCaption(_ n: Int, _ me: String) -> String { (n == 1 ? "1 Gerät bereit" : "\(n) Geräte bereit") + " · Du bist \(me)" }
-    static let readyLiveNone = "Noch niemand online"
+    static let readyTitle = String(localized: "Ready to bolt.")
+    static let readyBody = String(localized: "Tailbolt now lives in the menu bar. Two more things and you’re good to go.")
+    static let readyLogin = (String(localized: "Launch at login"), String(localized: "So you can receive files anytime"))
+    static let readyQuickAction = (String(localized: "Quick Action in the Finder"), String(localized: "“Send with Tailbolt” in the right-click menu"))
+    static let readyInstall = String(localized: "Install")
+    static let readyInstalled = String(localized: "Installed")
+    static let readySoon = String(localized: "Available after launch")
+    static let readyNote = String(localized: "You can change all of this later in Settings – that’s also where you’ll find this tour again.")
+    static func readyLiveCaption(_ n: Int, _ me: String) -> String {
+        (n == 1 ? String(localized: "1 device ready") : String(localized: "\(n) devices ready")) + " · " + String(localized: "You’re \(me)")
+    }
+    static let readyLiveNone = String(localized: "No one online yet")
 
-    static let navSkip = "Überspringen"
-    static let navBack = "Zurück"
-    static let navNext = "Weiter"
-    static let navDone = "Fertig"
+    static let navSkip = String(localized: "Skip")
+    static let navBack = String(localized: "Back")
+    static let navNext = String(localized: "Continue")
+    static let navDone = String(localized: "Done")
 }
 
 // MARK: - Easing helpers (pure functions of the demo clock)
@@ -151,7 +155,7 @@ struct PageDots: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!canJump(i))
-                .accessibilityLabel("Seite \(i + 1) von \(count)")
+                .accessibilityLabel("Page \(i + 1) of \(count)")
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: current)
@@ -216,7 +220,7 @@ struct KeyComboView: View {
     }
 }
 
-/// Keycap-styled chip with a symbol, for non-keyboard triggers ("Schütteln", "Teilen").
+/// Keycap-styled chip with a symbol, for non-keyboard triggers ("Shake", "Share"). `text` must already be localized.
 struct Chip: View {
     let text: String
     var symbol: String?
@@ -323,7 +327,7 @@ struct MockFinder: View {
                 Spacer()
                 HStack(spacing: 5) {
                     Image(systemName: "folder.fill").font(.system(size: 11)).foregroundStyle(Color.accentColor)
-                    Text("Downloads").font(.system(size: 12, weight: .medium))
+                    Text(verbatim: "Downloads").font(.system(size: 12, weight: .medium))
                 }
                 Spacer()
                 Color.clear.frame(width: 42, height: 10)
@@ -377,7 +381,7 @@ struct MenuBarStrip: View {
             HStack(spacing: 12) {
                 Image(systemName: "wifi").font(.system(size: 13, weight: .medium))
                 Image(systemName: "battery.75percent").font(.system(size: 13))
-                Text("14:32").font(.system(size: 12, weight: .medium)).monospacedDigit()
+                Text(verbatim: "14:32").font(.system(size: 12, weight: .medium)).monospacedDigit()
             }
             .foregroundStyle(.primary.opacity(0.85))
             .frame(height: 24)
@@ -496,12 +500,12 @@ struct DemoBubble: View {
 
     private var subtitle: String {
         switch status {
-        case .waiting: return "Warten…"
+        case .waiting: return String(localized: "Waiting…")
         case .progress(let f): return "\(Int((f * 100).rounded())) %"
-        case .sent: return "Gesendet"
+        case .sent: return String(localized: "Sent")
         case .idle:
             if device.viaTaildrop { return "Taildrop" }
-            return device.ownerName ?? (device.peer.isMine ? "Mein Gerät" : "")
+            return device.ownerName ?? (device.peer.isMine ? String(localized: "My device") : "")
         }
     }
 
@@ -577,8 +581,8 @@ struct DemoShelf: View {
                 .overlay(
                     VStack(spacing: 6) {
                         Image(systemName: "tray.and.arrow.down").font(.system(size: 26, weight: .light))
-                        Text("Dateien hier ablegen").font(.system(size: 12, weight: .medium))
-                        Text("oder direkt auf ein Gerät ziehen").font(.system(size: 10)).foregroundStyle(.tertiary)
+                        Text("Drop files here").font(.system(size: 12, weight: .medium))
+                        Text("or drag them straight onto a device").font(.system(size: 10)).foregroundStyle(.tertiary)
                     }
                     .foregroundStyle(stackTargeted ? Color.accentColor : .secondary)
                 )
@@ -638,8 +642,8 @@ struct DemoIncomingCard: View {
             switch mode {
             case .decision(let pressed):
                 HStack(spacing: 8) {
-                    Text("Ablehnen").frame(maxWidth: .infinity).modifier(DemoPanelButton())
-                    Text("Annehmen").frame(maxWidth: .infinity).modifier(DemoPanelButton(prominent: true, pressed: pressed))
+                    Text("Decline").frame(maxWidth: .infinity).modifier(DemoPanelButton())
+                    Text("Accept").frame(maxWidth: .infinity).modifier(DemoPanelButton(prominent: true, pressed: pressed))
                 }
             case .progress(let f, let status):
                 VStack(alignment: .leading, spacing: 5) {
@@ -647,14 +651,14 @@ struct DemoIncomingCard: View {
                     HStack {
                         Text(status).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
                         Spacer()
-                        Text("Abbrechen").font(.system(size: 10)).foregroundStyle(Color.accentColor)
+                        Text("Cancel").font(.system(size: 10)).foregroundStyle(Color.accentColor)
                     }
                 }
             case .finished(let isFolder):
                 HStack(spacing: 8) {
-                    Label("Im Finder zeigen", systemImage: "folder").frame(maxWidth: .infinity).modifier(DemoPanelButton())
+                    Label("Show in Finder", systemImage: "folder").frame(maxWidth: .infinity).modifier(DemoPanelButton())
                     if !isFolder {
-                        Label("Öffnen", systemImage: "arrow.up.forward.app").frame(maxWidth: .infinity).modifier(DemoPanelButton())
+                        Label("Open", systemImage: "arrow.up.forward.app").frame(maxWidth: .infinity).modifier(DemoPanelButton())
                     }
                 }
             }
@@ -669,9 +673,9 @@ struct DemoIncomingCard: View {
 
     private var headline: String {
         switch mode {
-        case .decision: return "möchte «\(what)» senden · \(size)"
-        case .progress: return "sendet «\(what)»"
-        case .finished: return "«\(what)» gespeichert in Downloads"
+        case .decision: return String(localized: "wants to send “\(what)” · \(size)")
+        case .progress: return String(localized: "is sending “\(what)”")
+        case .finished: return String(localized: "“\(what)” saved to Downloads")
         }
     }
 }

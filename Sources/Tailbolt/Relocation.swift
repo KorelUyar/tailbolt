@@ -13,12 +13,12 @@ enum Relocation {
               !UserDefaults.standard.bool(forKey: "skipRelocation") else { return false }
 
         let alert = NSAlert()
-        alert.messageText = "Tailbolt in den Programme-Ordner verschieben?"
-        alert.informativeText = "Damit Tailbolt immer am gleichen Ort ist und beim Anmelden starten kann, sollte es im Ordner «Programme» liegen. Es wird verschoben und neu gestartet."
-        alert.addButton(withTitle: "Verschieben")
-        alert.addButton(withTitle: "Nicht verschieben")
+        alert.messageText = String(localized: "Move Tailbolt to the Applications folder?")
+        alert.informativeText = String(localized: "To stay in one place and launch at login, Tailbolt should be in the “Applications” folder. It will be moved and relaunched.")
+        alert.addButton(withTitle: String(localized: "Move"))
+        alert.addButton(withTitle: String(localized: "Don’t Move"))
         alert.showsSuppressionButton = true
-        alert.suppressionButton?.title = "Nicht mehr fragen"
+        alert.suppressionButton?.title = String(localized: "Don’t ask again")
         NSApp.activate(ignoringOtherApps: true)
         let response = alert.runModal()
         if alert.suppressionButton?.state == .on { UserDefaults.standard.set(true, forKey: "skipRelocation") }

@@ -245,8 +245,8 @@ struct ShakeStage: View {
         let pos = pointer(t)
 
         ZStack(alignment: .topLeading) {
-            MockFinder(rows: [.init(icon: "film", name: "Ferien-Video.mov", detail: "4.2 GB"),
-                              .init(icon: "folder.fill", name: "Projekt-Export", detail: nil),
+            MockFinder(rows: [.init(icon: "film", name: "Vacation.mov", detail: "4.2 GB"),
+                              .init(icon: "folder.fill", name: "Project Export", detail: nil),
                               .init(icon: "doc.richtext", name: "notes.pdf", detail: "1.1 MB"),
                               .init(icon: "photo", name: "logo.png", detail: "214 KB")],
                        selected: t < 6.7 ? 0 : nil, pressed: dragging, hideThumbOfSelected: dragging)
@@ -397,7 +397,8 @@ struct CardsStage: View {
         let f = prog(start + q, start, end, .easeInOut)
         let bytes = Int64(f * 2_400_000_000)
         let remaining = max(1, Int(((1 - f) * totalSeconds).rounded()))
-        return "\(ByteFormat.string(bytes)) von 2.4 GB · \(speed) · noch \(remaining) s"
+        let done = ByteFormat.string(bytes)
+        return String(localized: "\(done) of 2.4 GB · \(speed) · \(remaining) s left")
     }
 
     var body: some View {
@@ -424,12 +425,12 @@ struct CardsStage: View {
 
             VStack(alignment: .trailing, spacing: 8) {
                 if t >= 0.6 {
-                    DemoIncomingCard(peerName: "Noahs MacBook Pro", peerSymbol: "laptopcomputer", what: "Projekt-Export", size: "2.4 GB", mode: mode1)
+                    DemoIncomingCard(peerName: "Noah’s MacBook Pro", peerSymbol: "laptopcomputer", what: "Project Export", size: "2.4 GB", mode: mode1)
                         .offset(x: lerp(card1In, 380, 0))
                         .opacity(prog(t, 0.6, 0.8))
                 }
                 if t >= 6.0 {
-                    DemoIncomingCard(peerName: "MacBook Pro von Sara", peerSymbol: "laptopcomputer", what: "Ferien 2026", size: "2.4 GB",
+                    DemoIncomingCard(peerName: "Sara’s MacBook Pro", peerSymbol: "laptopcomputer", what: "Vacation 2026", size: "2.4 GB",
                                      mode: mode2, mine: true, badge: OnboardingStrings.receiveDemoBadge)
                         .offset(x: lerp(card2In, 380, 0))
                         .opacity(prog(t, 6.0, 6.2))
@@ -515,7 +516,7 @@ struct KeysStage: View {
                 .position(keysCenter)
 
             if shelfAOpacity > 0 {
-                DemoShelf(devices: OnboardingMocks.shelfDevices, files: [OnboardingMocks.notes, OnboardingMocks.logo], summary: "2 Objekte · 1.3 MB")
+                DemoShelf(devices: OnboardingMocks.shelfDevices, files: [OnboardingMocks.notes, OnboardingMocks.logo], summary: String(localized: "2 items · 1.3 MB"))
                     .scaleEffect(shelfScale * lerp(shelfAIn, 0.9, 1))
                     .opacity(shelfAOpacity)
                     .position(shelfACenter)
@@ -523,7 +524,7 @@ struct KeysStage: View {
 
             if shelfBOpacity > 0 {
                 DemoShelf(devices: OnboardingMocks.shelfDevices, files: dropped ? [OnboardingMocks.video] : [],
-                          summary: "Ferien-Video.mov · 4.2 GB", stackTargeted: t >= 4.75 && t < 5.0)
+                          summary: "Vacation.mov · 4.2 GB", stackTargeted: t >= 4.75 && t < 5.0)
                     .scaleEffect(shelfScale)
                     .opacity(shelfBOpacity)
                     .position(x: shelfBCenter.x, y: shelfBCenter.y + lerp(shelfBIn, -10, 0))

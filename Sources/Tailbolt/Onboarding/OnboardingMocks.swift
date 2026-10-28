@@ -10,10 +10,10 @@ enum OnboardingMocks {
     // MARK: devices
 
     static let noah = Device(
-        peer: .make(id: "mock-noah", hostName: "Noahs MacBook Pro", dnsName: "noahs-macbook-pro.tail.ts.net",
+        peer: .make(id: "mock-noah", hostName: "Noah’s MacBook Pro", dnsName: "noahs-macbook-pro.tail.ts.net",
                     ips: ["100.101.1.1"], os: "macOS",
                     user: .make(id: 11, loginName: "noah@example.com", displayName: "Noah Meier")),
-        hello: HelloInfo(name: "Noahs MacBook Pro", os: "macOS", app: Tailbolt.appVersion))
+        hello: HelloInfo(name: "Noah’s MacBook Pro", os: "macOS", app: Tailbolt.appVersion))
 
     static let lena = Device(
         peer: .make(id: "mock-lena", hostName: "Lena – Mac Studio", dnsName: "lena-mac-studio.tail.ts.net",
@@ -27,7 +27,7 @@ enum OnboardingMocks {
         hello: HelloInfo(name: "home-server", os: "linux", app: Tailbolt.appVersion))
 
     static let iphone = Device(
-        peer: .make(id: "mock-iphone", hostName: "Mein iPhone", dnsName: "mein-iphone.tail.ts.net",
+        peer: .make(id: "mock-iphone", hostName: "My iPhone", dnsName: "my-iphone.tail.ts.net",
                     ips: ["100.101.1.4"], os: "iOS", isMine: true, taildropAvailable: true),
         hello: nil)
 
@@ -64,8 +64,8 @@ enum OnboardingMocks {
     // MARK: files
 
     static let directory = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("tailbolt-onboarding", isDirectory: true)
-    static var video: URL { directory.appendingPathComponent("Ferien-Video.mov") }
-    static var folder: URL { directory.appendingPathComponent("Projekt-Export", isDirectory: true) }
+    static var video: URL { directory.appendingPathComponent("Vacation.mov") }
+    static var folder: URL { directory.appendingPathComponent("Project Export", isDirectory: true) }
     static var notes: URL { directory.appendingPathComponent("notes.pdf") }
     static var logo: URL { directory.appendingPathComponent("logo.png") }
     static var tryIt: URL { directory.appendingPathComponent("Tailbolt-Test.txt") }
@@ -81,12 +81,12 @@ enum OnboardingMocks {
         for url in [video, notes] where !fm.fileExists(atPath: url.path) {
             fm.createFile(atPath: url.path, contents: Data())
         }
-        for name in ["Skizzen.sketch", "Export.zip", "README.md"] {
+        for name in ["Sketches.sketch", "Export.zip", "README.md"] {
             let f = folder.appendingPathComponent(name)
             if !fm.fileExists(atPath: f.path) { fm.createFile(atPath: f.path, contents: Data()) }
         }
         if !fm.fileExists(atPath: tryIt.path) {
-            try? "Hallo von Tailbolt\n".data(using: .utf8)?.write(to: tryIt)
+            try? "Hello from Tailbolt\n".data(using: .utf8)?.write(to: tryIt)
         }
         if !fm.fileExists(atPath: logo.path), let png = AppIconRenderer.png(pixels: 256) {
             try? png.write(to: logo)

@@ -45,7 +45,7 @@ final class ToastController {
     private var hideWork: DispatchWorkItem?
     private weak var tracked: TransferItem?
 
-    /// One-off message, e.g. "Favorit 3 ist nicht belegt".
+    /// One-off message, e.g. "Favorite 3 isn’t assigned" (callers pass it localized).
     func flash(_ title: String, symbol: String = "info.circle", tone: ToastModel.Tone = .info, duration: TimeInterval = 2) {
         guard Settings.shared.hudEnabled else { return }
         tracked = nil
@@ -81,31 +81,31 @@ final class ToastController {
     }
 
     private func apply(_ item: TransferItem) {
-        let what = item.names.count == 1 ? "«\(item.names[0])»" : "\(item.names.count) Objekte"
+        let what = item.names.count == 1 ? String(localized: "“\(item.names[0])”") : String(localized: "\(item.names.count) items")
         let to = "→ \(item.peerName)"
         switch item.state {
         case .preparing:
-            model.set(tone: .progress, symbol: "arrow.up.right", title: to, detail: "Vorbereiten…", indeterminate: true)
+            model.set(tone: .progress, symbol: "arrow.up.right", title: to, detail: String(localized: "Preparing…"), indeterminate: true)
         case .waiting:
-            model.set(tone: .progress, symbol: "arrow.up.right", title: to, detail: "Warten auf Annahme…", indeterminate: true)
+            model.set(tone: .progress, symbol: "arrow.up.right", title: to, detail: String(localized: "Waiting to be accepted…"), indeterminate: true)
         case .transferring:
             if item.taildrop != nil {
-                model.set(tone: .progress, symbol: "arrow.up.right", title: to, detail: "Sende \(what) via Taildrop…", indeterminate: true)
+                model.set(tone: .progress, symbol: "arrow.up.right", title: to, detail: String(localized: "Sending \(what) via Taildrop…"), indeterminate: true)
             } else {
-                var d = "Sende \(what) · \(Int(item.fraction * 100)) %"
+                var d = String(localized: "Sending \(what) · \(Int(item.fraction * 100)) %")
                 if item.speed > 0 { d += " · \(ByteFormat.speed(item.speed))" }
                 model.set(tone: .progress, symbol: "arrow.up.right", title: to, detail: d, fraction: item.fraction)
             }
         case .finishing:
-            model.set(tone: .progress, symbol: "arrow.up.right", title: to, detail: "Abschliessen…", fraction: 1)
+            model.set(tone: .progress, symbol: "arrow.up.right", title: to, detail: String(localized: "Finishing…"), fraction: 1)
         case .finished:
-            model.set(tone: .success, symbol: "checkmark.circle.fill", title: "Gesendet an \(item.peerName)", detail: ByteFormat.string(item.totalBytes))
+            model.set(tone: .success, symbol: "checkmark.circle.fill", title: String(localized: "Sent to \(item.peerName)"), detail: ByteFormat.string(item.totalBytes))
         case .declined(let reason):
-            model.set(tone: .error, symbol: "xmark.circle.fill", title: "Abgelehnt", detail: reason ?? "von \(item.peerName)")
+            model.set(tone: .error, symbol: "xmark.circle.fill", title: String(localized: "Declined"), detail: reason ?? String(localized: "by \(item.peerName)"))
         case .failed(let reason):
-            model.set(tone: .error, symbol: "xmark.circle.fill", title: "Fehler", detail: reason)
+            model.set(tone: .error, symbol: "xmark.circle.fill", title: String(localized: "Error"), detail: reason)
         case .cancelled(let reason):
-            model.set(tone: .info, symbol: "minus.circle.fill", title: "Abgebrochen", detail: reason)
+            model.set(tone: .info, symbol: "minus.circle.fill", title: String(localized: "Cancelled"), detail: reason)
         }
     }
 

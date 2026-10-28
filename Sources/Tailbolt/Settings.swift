@@ -11,9 +11,9 @@ enum ShakeSensitivity: Int, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .gentle: return "Sanft"
-        case .normal: return "Normal"
-        case .strong: return "Kräftig"
+        case .gentle: return String(localized: "Gentle")
+        case .normal: return String(localized: "Normal")
+        case .strong: return String(localized: "Strong")
         }
     }
 

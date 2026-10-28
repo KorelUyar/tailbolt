@@ -40,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         OnboardingController.shared.quickActionInstaller = { try? QuickActionInstaller.install() }
         OnboardingController.shared.isQuickActionInstalled = { QuickActionInstaller.isInstalled }
+        QuickActionInstaller.migrateIfNeeded()   // Finder menu title follows the UI language
         SettingsActions.openOnboarding = { OnboardingController.shared.show() }   // popover footer, status menu, Allgemein
         OnboardingController.shared.showIfNeeded()
 

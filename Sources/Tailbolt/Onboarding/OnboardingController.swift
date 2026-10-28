@@ -64,15 +64,13 @@ final class OnboardingController: NSObject, NSWindowDelegate {
 
     // MARK: hooks the app wires (safe defaults so the window works stand-alone)
 
-    /// Installs the Finder Quick Action ("Mit Tailbolt senden"). nil = not available yet.
+    /// Installs the Finder Quick Action ("Send with Tailbolt"). nil = not available yet.
     var quickActionInstaller: (() -> Void)?
     /// Whether the Quick Action is installed; default checks ~/Library/Services.
-    var isQuickActionInstalled: () -> Bool = {
-        FileManager.default.fileExists(atPath: NSHomeDirectory() + "/Library/Services/Mit Tailbolt senden.workflow")
-    }
-    /// Called 0.4 s after "Fertig" closed the window (main.swift opens the menu-bar popover).
+    var isQuickActionInstalled: () -> Bool = { QuickActionInstaller.isInstalled }
+    /// Called 0.4 s after "Done" closed the window (main.swift opens the menu-bar popover).
     var onFinished: (() -> Void)?
-    /// Link copied by "Einladungslink kopieren".
+    /// Link copied by "Copy Invite Link".
     var downloadURL = URL(string: "https://github.com/KorelUyar/tailbolt/releases/latest")!
 
     private(set) var state = OnboardingState()
@@ -118,7 +116,7 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         }
     }
 
-    /// Shows the assistant from the first page (settings "Einführung erneut anzeigen").
+    /// Shows the assistant from the first page (settings: show the tour again).
     func show() { show(startingAt: .welcome) }
 
     private func show(startingAt start: OnboardingPage) {
@@ -195,13 +193,13 @@ final class OnboardingController: NSObject, NSWindowDelegate {
         }
     }
 
-    /// Überspringen / close button / Escape.
+    /// Skip / close button / Escape.
     func skip() {
         markCompleted()
         close(fade: 0.15)
     }
 
-    /// Fertig: apply the consented settings, persist, close, then show where Tailbolt lives.
+    /// Done: apply the consented settings, persist, close, then show where Tailbolt lives.
     func finish() {
         let s = Settings.shared
         if s.launchAtLogin != state.launchAtLoginWanted { s.launchAtLogin = state.launchAtLoginWanted }
@@ -308,7 +306,7 @@ final class OnboardingController: NSObject, NSWindowDelegate {
             step += 1
             if state.page == .ready {
                 state.launchAtLoginWanted = Settings.shared.launchAtLogin   // the tour must not touch login items
-                key(53)                                                     // Esc on the last page = Fertig
+                key(53)                                                     // Esc on the last page = Done
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) { exit(0) }
                 return
             }
@@ -340,7 +338,7 @@ final class OnboardingController: NSObject, NSWindowDelegate {
 
     // MARK: keys
 
-    /// → / ⌘→ / ↩ = Weiter · ← / ⌘← = Zurück · Esc / ⌘. = Überspringen (page 5: Fertig).
+    /// → / ⌘→ / ↩ = Continue · ← / ⌘← = Back · Esc / ⌘. = Skip (page 5: Done).
     fileprivate func handle(_ event: NSEvent) -> Bool {
         if let r = window?.firstResponder, r is NSTextView { return false }
         let cmd = event.modifierFlags.contains(.command)
@@ -364,7 +362,7 @@ final class OnboardingWindow: NSWindow {
         let size = NSSize(width: OnboardingTokens.windowWidth, height: OnboardingTokens.windowHeight)
         super.init(contentRect: NSRect(origin: .zero, size: size), styleMask: [.titled, .closable, .fullSizeContentView],
                    backing: .buffered, defer: false)
-        title = "Willkommen bei Tailbolt"
+        title = String(localized: "Welcome to Tailbolt")
         titlebarAppearsTransparent = true
         titleVisibility = .hidden
         standardWindowButton(.miniaturizeButton)?.isHidden = true

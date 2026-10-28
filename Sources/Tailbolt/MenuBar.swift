@@ -33,7 +33,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
             button.target = self
             button.action = #selector(toggle)
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-            button.toolTip = "Tailbolt – Dateien hierher ziehen. Klick: Geräte, ⌘-Klick: Über Tailbolt"
+            button.toolTip = String(localized: "Tailbolt – drag files here. Click: devices, ⌘-click: About Tailbolt")
             button.setAccessibilityLabel("Tailbolt")
             let drop = StatusDropView(frame: button.bounds)
             drop.autoresizingMask = [.width, .height]
@@ -82,9 +82,9 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         let halo: CGFloat? = dragging ? 0.16 + 0.08 * (0.5 + 0.5 * sin(Double(phase) / 8 * 2 * .pi)) : nil
         button.image = Self.composeIcon(fraction: fraction, pending: pending, halo: halo, dark: dark)
         if let fraction {
-            button.setAccessibilityValue("Übertragung \(Int(fraction * 100)) %")
+            button.setAccessibilityValue(String(localized: "Transfer \(Int(fraction * 100)) %"))
         } else {
-            button.setAccessibilityValue(pending ? "Übertragung wartet" : nil)
+            button.setAccessibilityValue(pending ? String(localized: "Transfer waiting") : nil)
         }
     }
 
@@ -176,16 +176,16 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
 
     private func showContextMenu() {
         let menu = NSMenu()
-        menu.addItem(withTitle: "Shelf öffnen", action: #selector(openShelf), keyEquivalent: "").target = self
+        menu.addItem(withTitle: String(localized: "Open Shelf"), action: #selector(openShelf), keyEquivalent: "").target = self
         if let last = AppModel.shared.lastPayload, !last.existingURLs.isEmpty {
-            menu.addItem(withTitle: "Erneut an \(last.deviceName) senden", action: #selector(resendLast), keyEquivalent: "").target = self
+            menu.addItem(withTitle: String(localized: "Send Again to \(last.deviceName)"), action: #selector(resendLast), keyEquivalent: "").target = self
         }
-        menu.addItem(withTitle: "Empfangene Dateien", action: #selector(openDownloads), keyEquivalent: "").target = self
+        menu.addItem(withTitle: String(localized: "Received Files"), action: #selector(openDownloads), keyEquivalent: "").target = self
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Einführung", action: #selector(openOnboarding), keyEquivalent: "").target = self
-        menu.addItem(withTitle: "Einstellungen…", action: #selector(openSettings), keyEquivalent: ",").target = self
+        menu.addItem(withTitle: String(localized: "Tour"), action: #selector(openOnboarding), keyEquivalent: "").target = self
+        menu.addItem(withTitle: String(localized: "Settings…"), action: #selector(openSettings), keyEquivalent: ",").target = self
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Tailbolt beenden", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.addItem(withTitle: String(localized: "Quit Tailbolt"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         item.menu = menu
         item.button?.performClick(nil)
         item.menu = nil
@@ -240,17 +240,17 @@ struct TransferCapsules: View {
 
     var body: some View {
         if item.usesLAN || item.everUsedLAN {
-            PathCapsule(label: "LAN-Turbo", tint: .accentColor, bolt: true)
-                .help("LAN-Turbo: läuft direkt über das lokale Netzwerk, parallel zum Tailscale-Tunnel – schnellster Weg.")
-                .accessibilityLabel("über LAN-Turbo")
+            PathCapsule(label: String(localized: "LAN Turbo"), tint: .accentColor, bolt: true)
+                .help("LAN Turbo: runs directly over the local network, alongside the Tailscale tunnel – the fastest path.")
+                .accessibilityLabel("via LAN Turbo")
         }
         if let pct = Self.lz4Percent(item) {
-            Text("LZ4 −\(pct) %")
+            Text(verbatim: "LZ4 −\(pct) %")
                 .font(.system(size: 10, weight: .semibold, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-                .help("LZ4-Kompression hat \(pct) % der Bytes auf der Leitung gespart")
+                .help("LZ4 compression saved \(pct) % of the bytes on the wire")
         }
     }
 
@@ -279,12 +279,12 @@ enum DurationFormat {
         return (f.string(from: NSNumber(value: s)) ?? "\(Int(s))") + " s"
     }
 
-    /// "gerade eben", "vor 3 Min." …
+    /// "just now", "3 min. ago" … in the UI language.
     static func ago(_ date: Date) -> String {
         let s = Date().timeIntervalSince(date)
-        if s < 60 { return "gerade eben" }
+        if s < 60 { return String(localized: "just now") }
         let f = RelativeDateTimeFormatter()
-        f.locale = Locale(identifier: "de_CH")
+        f.locale = Locale(identifier: Bundle.main.preferredLocalizations.first == "de" ? "de_CH" : "en_US")
         f.unitsStyle = .abbreviated
         return f.localizedString(for: date, relativeTo: Date())
     }
@@ -326,7 +326,7 @@ struct MenuView: View {
             TimelineView(.periodic(from: .now, by: 1)) { _ in
                 VStack(alignment: .leading, spacing: 0) {
                     if let last = app.lastPayload, !last.existingURLs.isEmpty {
-                        sectionLabel("Zuletzt")
+                        sectionLabel("Recent")
                         LastPayloadRow(payload: last, close: close)
                             .padding(.horizontal, 8)
                             .padding(.bottom, 4)
@@ -367,10 +367,10 @@ struct MenuView: View {
             if app.isRefreshing {
                 HStack(spacing: 5) {
                     ProgressView().controlSize(.mini)
-                    Text("Suche…").font(.system(size: 11)).foregroundStyle(.secondary)
+                    Text("Searching…").font(.system(size: 11)).foregroundStyle(.secondary)
                 }
                 .transition(.opacity)
-                .accessibilityLabel("Sucht Geräte")
+                .accessibilityLabel("Searching for devices")
             } else {
                 Button { app.refresh() } label: {
                     Image(systemName: "arrow.clockwise")
@@ -380,8 +380,8 @@ struct MenuView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help("Geräte neu suchen")
-                .accessibilityLabel("Geräte neu suchen")
+                .help("Search for devices again")
+                .accessibilityLabel("Search for devices again")
                 .transition(.opacity)
             }
         }
@@ -394,22 +394,23 @@ struct MenuView: View {
     }
 
     private var statusText: String {
-        if let e = app.serverError { return "Empfang nicht möglich: \(e)" }
-        if app.tailscaleMissing { return "Tailscale nicht installiert" }
-        guard let s = app.status else { return app.hasRefreshed ? "Tailscale nicht erreichbar" : "Verbinde…" }
-        if !s.running { return "Tailscale ist gestoppt" }
+        if let e = app.serverError { return String(localized: "Can’t receive: \(e)") }
+        if app.tailscaleMissing { return String(localized: "Tailscale not installed") }
+        guard let s = app.status else { return app.hasRefreshed ? String(localized: "Tailscale not reachable") : String(localized: "Connecting…") }
+        if !s.running { return String(localized: "Tailscale is stopped") }
         if let net = s.tailnetName, !net.isEmpty { return "\(s.selfName) · \(net)" }
-        return "\(s.selfName) · bereit zum Empfangen"
+        return String(localized: "\(s.selfName) · ready to receive")
     }
 
     private var statusHelp: String {
-        if app.serverError != nil { return "Der Empfänger konnte Port \(Tailbolt.defaultPort) nicht öffnen." }
-        return "Empfängt auf Port \(Tailbolt.defaultPort) – nur von Geräten im Tailnet"
+        let port = Int(Tailbolt.defaultPort)
+        if app.serverError != nil { return String(localized: "The receiver couldn’t open port \(port).") }
+        return String(localized: "Receiving on port \(port) – only from devices on your tailnet")
     }
 
     // MARK: devices
 
-    private func sectionLabel(_ text: String) -> some View {
+    private func sectionLabel(_ text: LocalizedStringKey) -> some View {
         Text(text)
             .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(.secondary)
@@ -428,12 +429,12 @@ struct MenuView: View {
             let mine = app.devices.filter(\.peer.isMine)
             let others = app.devices.filter { !$0.peer.isMine }
             if mine.isEmpty || others.isEmpty {
-                sectionLabel("Geräte")
+                sectionLabel("Devices")
                 grid(app.devices)
             } else {
-                sectionLabel("Meine Geräte")
+                sectionLabel("My Devices")
                 grid(mine)
-                sectionLabel("Andere")
+                sectionLabel("Others")
                 grid(others)
             }
         }
@@ -468,14 +469,14 @@ struct MenuView: View {
         VStack(spacing: 6) {
             if !app.hasRefreshed {
                 ProgressView().controlSize(.small)
-                Text("Suche Geräte im Tailnet…")
+                Text("Searching for devices on your tailnet…")
             } else if app.tailscaleMissing || app.status == nil {
                 Image(systemName: "network.slash").font(.system(size: 22, weight: .light))
-                Text("Tailscale ist nicht verbunden")
+                Text("Tailscale isn’t connected")
             } else {
                 Image(systemName: "dot.radiowaves.left.and.right").font(.system(size: 22, weight: .light))
-                Text("Keine Geräte mit Tailbolt online")
-                Text("Auf anderen Geräten im Tailnet Tailbolt starten – sie erscheinen dann automatisch hier.")
+                Text("No devices with Tailbolt online")
+                Text("Start Tailbolt on other devices on your tailnet – they’ll show up here automatically.")
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
                     .multilineTextAlignment(.center)
@@ -501,11 +502,11 @@ struct MenuView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 2) {
                     if !active.isEmpty {
-                        sectionLabel("Aktiv").padding(.horizontal, -6)
+                        sectionLabel("Active").padding(.horizontal, -6)
                         ForEach(active) { TransferRow(item: $0) }
                     }
                     if !history.isEmpty {
-                        sectionLabel("Verlauf").padding(.horizontal, -6)
+                        sectionLabel("History").padding(.horizontal, -6)
                         ForEach(history.prefix(10)) { TransferRow(item: $0) }
                     }
                 }
@@ -517,13 +518,13 @@ struct MenuView: View {
             if !history.isEmpty {
                 HStack {
                     Spacer()
-                    Button("Verlauf löschen") {
+                    Button("Clear History") {
                         withAnimation(Motion.ease(0.2)) { app.transfers.removeAll { !$0.isActive } }
                     }
                     .buttonStyle(.plain)
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
-                    .help("Abgeschlossene Übertragungen aus der Liste entfernen")
+                    .help("Remove completed transfers from the list")
                 }
                 .padding(.horizontal, 14)
                 .padding(.bottom, 7)
@@ -541,21 +542,21 @@ struct MenuView: View {
             } label: {
                 Label("Shelf", systemImage: "tray")
             }
-            .help("Shelf öffnen (\(settings.shortcuts[.openShelf]?.display ?? "Tastenkürzel") oder Maus beim Ziehen schütteln)")
+            .help("Open the shelf (\(settings.shortcuts[.openShelf]?.display ?? String(localized: "keyboard shortcut")) or shake the mouse while dragging)")
             Button {
                 close()
                 NSWorkspace.shared.open(settings.downloadDirectory)
             } label: {
-                Label("Empfangen", systemImage: "folder")
+                Label("Received", systemImage: "folder")
             }
-            .help("Empfangene Dateien im Finder öffnen (\(settings.downloadDirectory.lastPathComponent))")
+            .help("Open received files in Finder (\(settings.downloadDirectory.lastPathComponent))")
             Button {
                 close()
                 if let open = MenuActions.openOnboarding { open() } else { SettingsWindow.show() }
             } label: {
-                Label("Einführung", systemImage: "sparkles")
+                Label("Tour", systemImage: "sparkles")
             }
-            .help("Zeigt die Einführung noch einmal")
+            .help("Show the short tour again")
             Spacer(minLength: 0)
             Button {
                 close()
@@ -563,15 +564,15 @@ struct MenuView: View {
             } label: {
                 Image(systemName: "gearshape").frame(width: 16)
             }
-            .help("Einstellungen (⌘,)")
-            .accessibilityLabel("Einstellungen")
+            .help("Settings (⌘,)")
+            .accessibilityLabel("Settings")
             Button {
                 NSApp.terminate(nil)
             } label: {
                 Image(systemName: "power").frame(width: 16)
             }
-            .help("Tailbolt beenden")
-            .accessibilityLabel("Tailbolt beenden")
+            .help("Quit Tailbolt")
+            .accessibilityLabel("Quit Tailbolt")
         }
         .buttonStyle(FooterButtonStyle())
     }
@@ -597,14 +598,14 @@ struct LastPayloadRow: View {
             }
             .frame(width: 34, height: 34)
             .overlay(FileDragSource(urls: urls))
-            .help("Herausziehen, um die Dateien woanders abzulegen")
+            .help("Drag out to drop the files somewhere else")
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.system(size: 12, weight: .medium))
                     .lineLimit(1)
                     .truncationMode(.middle)
                 // "an goto · gerade eben"; a long device name drops the time rather than cutting the name.
-                Text(TransferRow.join(["an \(payload.deviceName)", DurationFormat.ago(payload.at)], budget: 30))
+                Text(TransferRow.join([String(localized: "to \(payload.deviceName)"), DurationFormat.ago(payload.at)], budget: 30))
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -616,13 +617,13 @@ struct LastPayloadRow: View {
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "arrow.counterclockwise").font(.system(size: 9, weight: .bold))
-                    Text("Erneut senden")
+                    Text("Send Again")
                 }
             }
             .buttonStyle(PanelButtonStyle())
             .disabled(online == nil)
             .opacity(online == nil ? 0.55 : 1)
-            .help(online == nil ? "\(payload.deviceName) ist gerade nicht online" : "Dieselben Dateien noch einmal an \(payload.deviceName) senden")
+            .help(online == nil ? String(localized: "\(payload.deviceName) isn’t online right now") : String(localized: "Send the same files to \(payload.deviceName) again"))
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
@@ -630,14 +631,14 @@ struct LastPayloadRow: View {
         .onHover { hover = $0 }
         .animation(.easeOut(duration: 0.12), value: hover)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Zuletzt gesendet: \(title) an \(payload.deviceName), \(DurationFormat.ago(payload.at))")
+        .accessibilityLabel("Last sent: \(title) to \(payload.deviceName), \(DurationFormat.ago(payload.at))")
     }
 
     private var online: Device? { app.devices.first { $0.id == payload.deviceID } }
 
     private var title: String {
         guard let first = urls.first else { return "" }
-        return urls.count == 1 ? first.lastPathComponent : "\(first.lastPathComponent) und \(urls.count - 1) weitere"
+        return urls.count == 1 ? first.lastPathComponent : String(localized: "\(first.lastPathComponent) and \(urls.count - 1) more")
     }
 }
 
@@ -691,10 +692,12 @@ struct TransferRow: View {
             if !item.savedURLs.isEmpty { NSWorkspace.shared.activateFileViewerSelecting(item.savedURLs) }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(item.direction == .outgoing ? "Gesendet" : "Empfangen"): \(item.title), \(detail)")
+        .accessibilityLabel(Text(verbatim: "\(item.direction == .outgoing ? String(localized: "Sent") : String(localized: "Received")): \(item.title), \(detail)"))
     }
 
-    private var who: String { (item.direction == .outgoing ? "an " : "von ") + item.peerName }
+    private var who: String {
+        item.direction == .outgoing ? String(localized: "to \(item.peerName)") : String(localized: "from \(item.peerName)")
+    }
 
     /// "an goto · 40 % · 112 MB/s · noch 22 s" while moving, "an goto · 4,2 GB in 8,1 s · 520 MB/s" when done.
     /// Trailing parts are dropped whole when a long device name would otherwise cut a number in half.
@@ -738,8 +741,8 @@ struct TransferRow: View {
                 Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
-            .help("Abbrechen")
-            .accessibilityLabel("Abbrechen")
+            .help("Cancel")
+            .accessibilityLabel("Cancel")
             .opacity(hover ? 1 : 0.6)
         } else if !item.isActive {
             HStack(spacing: 6) {
@@ -748,16 +751,16 @@ struct TransferRow: View {
                         Image(systemName: "arrow.counterclockwise.circle.fill").foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
-                    .help("Erneut an \(device.name) senden")
-                    .accessibilityLabel("Erneut senden")
+                    .help("Send Again to \(device.name)")
+                    .accessibilityLabel("Send Again")
                 }
                 if !item.savedURLs.isEmpty {
                     Button { NSWorkspace.shared.activateFileViewerSelecting(item.savedURLs) } label: {
                         Image(systemName: "magnifyingglass.circle.fill").foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
-                    .help("Im Finder zeigen")
-                    .accessibilityLabel("Im Finder zeigen")
+                    .help("Show in Finder")
+                    .accessibilityLabel("Show in Finder")
                 }
                 Button {
                     withAnimation(Motion.ease(0.2)) { app.transfers.removeAll { $0.id == item.id } }
@@ -765,8 +768,8 @@ struct TransferRow: View {
                     Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
-                .help("Aus dem Verlauf entfernen")
-                .accessibilityLabel("Aus dem Verlauf entfernen")
+                .help("Remove from History")
+                .accessibilityLabel("Remove from History")
             }
             .opacity(hover ? 1 : 0)
         }

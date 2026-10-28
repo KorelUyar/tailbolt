@@ -106,14 +106,14 @@ public final class SecureStream: ByteStream {
                 let n = try socket.recvSome(p.baseAddress! + got, 4 - got)
                 if n == 0 {
                     if got == 0 { return }
-                    throw SocketError("Verbindung geschlossen")
+                    throw SocketError(String(localized: "Connection closed"))
                 }
                 got += n
             }
         }
         if got == 0 { return false }
         let len = Int(UInt32(bigEndian: lenBytes))
-        guard len >= 16, len <= SecureStream.maxRecord + 16 else { throw SocketError("Ungültiger Datensatz") }
+        guard len >= 16, len <= SecureStream.maxRecord + 16 else { throw SocketError(String(localized: "Invalid record")) }
         try recordBuffer.withUnsafeMutableBytes { try socket.recvExact($0.baseAddress!, len) }
         let box = try AES.GCM.SealedBox(nonce: SecureStream.nonce(openDirection, openCounter),
                                         ciphertext: recordBuffer[0..<(len - 16)], tag: recordBuffer[(len - 16)..<len])
@@ -134,5 +134,5 @@ public final class SecureStream: ByteStream {
 
 /// A LAN record failed to authenticate — wrong key, replay, or someone who isn't our peer.
 public struct AuthenticationFailure: Error, CustomStringConvertible {
-    public var description: String { "Authentifizierung der LAN-Verbindung fehlgeschlagen" }
+    public var description: String { String(localized: "LAN connection authentication failed") }
 }

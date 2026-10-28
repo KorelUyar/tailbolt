@@ -73,35 +73,35 @@ struct OnboardingView: View {
         switch page {
         case .welcome:
             let target = hoverTarget, smoother = smoother
-            StageView(height: page.stageHeight, label: "Animation: Tailbolt verbindet sich mit vier Geräten im Tailnet und schickt Dateien hin und her.") { t in
+            StageView(height: page.stageHeight, label: String(localized: "Animation: Tailbolt connects to four devices in the tailnet and sends files back and forth.")) { t in
                 RadarStage(elapsed: t, parallax: smoother.step(toward: target), reduceMotion: rm)
             }
         case .tailscale:
             let connected = state.tailscaleConnected
-            StageView(height: page.stageHeight, label: "Animation: Geräte verbinden sich zu einem Netzwerk.") { t in
+            StageView(height: page.stageHeight, label: String(localized: "Animation: Devices join up to form a network.")) { t in
                 TailscaleStage(elapsed: t, connected: connected, reduceMotion: rm)
             }
         case .send:
-            StageView(height: page.stageHeight, label: "Animation: Eine Datei wird aus dem Finder gezogen, der Cursor schüttelt, das Shelf erscheint und die Datei wird auf ein Gerät gelegt.") { t in
+            StageView(height: page.stageHeight, label: String(localized: "Animation: A file is dragged out of the Finder, the pointer shakes, the Shelf appears and the file is dropped on a device.")) { t in
                 ShakeStage(elapsed: t, reduceMotion: rm)
             }
         case .devices:
             let devices = OnboardingMocks.bubbleDevices()
-            StageView(height: page.stageHeight, label: "Animation: Fünf Geräte im Tailnet – fremde, eigene und eines via Taildrop; ein Ordner wird auf eines gelegt.") { t in
+            StageView(height: page.stageHeight, label: String(localized: "Animation: Five devices in the tailnet – other people’s, your own and one via Taildrop; a folder is dropped on one of them.")) { t in
                 BubblesStage(elapsed: t, devices: devices, reduceMotion: rm)
             }
         case .receive:
-            StageView(height: page.stageHeight, label: "Animation: Oben rechts erscheint eine Karte, Annehmen wird geklickt, die Datei landet in Downloads; eine zweite Karte wird automatisch angenommen.") { t in
+            StageView(height: page.stageHeight, label: String(localized: "Animation: A card appears in the top-right corner, Accept is clicked and the file lands in Downloads; a second card is accepted automatically.")) { t in
                 CardsStage(elapsed: t, reduceMotion: rm)
             }
         case .shortcuts:
-            StageView(height: page.stageHeight, label: "Animation: Das Tastenkürzel Control Option Command B öffnet das Shelf; eine Datei wird auf das Menüleisten-Symbol gezogen.") { t in
+            StageView(height: page.stageHeight, label: String(localized: "Animation: The keyboard shortcut Control-Option-Command-B opens the Shelf; a file is dragged onto the menu bar icon.")) { t in
                 KeysStage(elapsed: t, reduceMotion: rm)
             }
         case .ready:
             let live = OnboardingMocks.liveDevices()
             let caption = live.real ? OnboardingStrings.readyLiveCaption(live.devices.count, AppModel.shared.myName) : OnboardingStrings.readyLiveNone
-            StageView(height: page.stageHeight, label: "Animation: Tailbolt in der Mitte, deine Geräte darum herum.") { t in
+            StageView(height: page.stageHeight, label: String(localized: "Animation: Tailbolt in the middle, your devices around it.")) { t in
                 LiveStage(elapsed: t, devices: live.devices, real: live.real, caption: caption, reduceMotion: rm)
             }
         }
@@ -345,7 +345,7 @@ private struct SendBlock: View {
             .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.separator.opacity(0.6), lineWidth: 0.5))
             .overlay(DemoDragSource(url: OnboardingMocks.tryIt))
             .padding(.top, 4)
-            .help("Zieh mich aus dem Fenster und schüttle den Cursor")
+            .help("Drag me out of the window and shake the pointer")
             if state.shelfOpened {
                 Footnote(text: OnboardingStrings.sendTryHint).transition(.opacity)
             }
@@ -431,7 +431,7 @@ private struct ReceiveBlock: View {
         p.canChooseFiles = false
         p.canCreateDirectories = true
         p.directoryURL = settings.downloadDirectory
-        p.prompt = "Wählen"
+        p.prompt = String(localized: "Choose")
         if p.runModal() == .OK, let url = p.url { settings.downloadDirectory = url }
     }
 }
@@ -448,8 +448,8 @@ private struct ShortcutsBlock: View {
                 row("doc.on.clipboard", OnboardingStrings.shortcutClipboard) { KeyComboView(["⌃", "⌥", "⌘", "V"]) }
                 row("arrow.uturn.forward", OnboardingStrings.shortcutLast) { KeyComboView(["⌃", "⌥", "⌘", "L"]) }
                 row("star", OnboardingStrings.shortcutFavorite) { KeyComboView(["⌃", "⌥", "⌘", "1–9"]) }
-                row("hand.draw", OnboardingStrings.shortcutShake) { Chip(text: "Schütteln", symbol: "arrow.left.and.right") }
-                row("square.and.arrow.up", OnboardingStrings.shortcutShare) { Chip(text: "Teilen", symbol: "square.and.arrow.up") }
+                row("hand.draw", OnboardingStrings.shortcutShake) { Chip(text: String(localized: "Shake"), symbol: "arrow.left.and.right") }
+                row("square.and.arrow.up", OnboardingStrings.shortcutShare) { Chip(text: String(localized: "Share"), symbol: "square.and.arrow.up") }
             }
             .frame(width: 480)
             .padding(.top, 4)
@@ -505,10 +505,10 @@ private struct ReadyBlock: View {
             }
             .padding(.top, 4)
             HStack(alignment: .top, spacing: 22) {
-                summary(KeyComboView(["⌃", "⌥", "⌘", "B"]), "Shelf")
-                summary(KeyComboView(["⌃", "⌥", "⌘", "V"]), "Zwischenablage")
-                summary(KeyComboView(["⌃", "⌥", "⌘", "L"]), "Letztes Gerät")
-                summary(Chip(text: "Schütteln", symbol: "arrow.left.and.right"), "Beim Ziehen")
+                summary(KeyComboView(["⌃", "⌥", "⌘", "B"]), String(localized: "Shelf"))
+                summary(KeyComboView(["⌃", "⌥", "⌘", "V"]), String(localized: "Clipboard"))
+                summary(KeyComboView(["⌃", "⌥", "⌘", "L"]), String(localized: "Last device"))
+                summary(Chip(text: String(localized: "Shake"), symbol: "arrow.left.and.right"), String(localized: "While dragging"))
             }
             .padding(.top, 6)
             Footnote(text: OnboardingStrings.readyNote).padding(.top, 2)

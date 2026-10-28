@@ -3,7 +3,7 @@ import Foundation
 public enum Tailbolt {
     public static let defaultPort: UInt16 = 48484
     public static let protocolVersion = 2
-    public static let appVersion = "2.0"
+    public static let appVersion = "2.1"
     static let maxChunkSize: Int64 = 16 << 20
     static let ioBufferSize = 4 << 20
     /// Parallel TCP streams through the tailnet and (when both ends share a LAN) directly over it.
@@ -14,6 +14,12 @@ public enum Tailbolt {
     static let noCacheThreshold: Int64 = 64 << 20
     /// Capabilities announced in hello; a sender only uses what the receiver listed.
     static var capabilities: [String] { (LZ4.available ? ["lz4"] : []) + ["lan"] }
+
+    /// Human-readable reasons travel between peers in English; show them in our language when the phrase is known
+    /// (the English text is the key in Localizable.strings), otherwise as received.
+    static func localizedReason(_ english: String) -> String {
+        Bundle.main.localizedString(forKey: english, value: english, table: nil)
+    }
 
     /// Small transfers get smaller chunks so every stream has work and the tail is short;
     /// big ones use 16 MiB (≥ 8 chunks per stream at 4 streams means ≥ 512 MiB).
@@ -86,7 +92,7 @@ extension ByteStream {
         var len: UInt32 = 0
         try withUnsafeMutableBytes(of: &len) { try recvExact($0.baseAddress!, 4) }
         let count = Int(UInt32(bigEndian: len))
-        guard count > 0, count < 64 << 20 else { throw SocketError("Ungültiger Frame") }
+        guard count > 0, count < 64 << 20 else { throw SocketError(String(localized: "Invalid frame")) }
         var body = Data(count: count)
         try body.withUnsafeMutableBytes { try recvExact($0.baseAddress!, count) }
         return try wireDecoder.decode(Msg.self, from: body)

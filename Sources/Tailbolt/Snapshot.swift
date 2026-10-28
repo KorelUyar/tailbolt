@@ -16,7 +16,7 @@ enum Snapshot {
         if ProcessInfo.processInfo.environment["TAILBOLT_DEMO"] == "1" { app.useDemoTailnet() } else { app.debugMarkPeersAvailable() }
         let devices = app.devices
 
-        // Shelf with a transfer running to the first device; the same send is the popover's "Zuletzt" row.
+        // Shelf with a transfer running to the first device; the same send is the popover's "Recent" row.
         let shelf = ShelfModel()
         shelf.files = files
         if let d = devices.first {
@@ -26,11 +26,11 @@ enum Snapshot {
             app.transfers.append(t)
             if !files.isEmpty { app.debugSetLastPayload(files, to: d) }
         }
-        let waiting = TransferItem(direction: .incoming, deviceID: nil, peerName: "Noahs MacBook Pro", peerSymbol: "laptopcomputer",
-                                   names: ["Projekt-Export", "notes.pdf", "logo.png"])
+        let waiting = TransferItem(direction: .incoming, deviceID: nil, peerName: "Noah’s MacBook Pro", peerSymbol: "laptopcomputer",
+                                   names: ["Project Export", "notes.pdf", "logo.png"])
         waiting.totalBytes = 2_400_000_000; waiting.state = .waiting; waiting.awaitingDecision = true
-        let running = TransferItem(direction: .incoming, deviceID: nil, peerName: "MacBook Pro von Sara", peerSymbol: "laptopcomputer",
-                                   names: ["Ferien 2026"])
+        let running = TransferItem(direction: .incoming, deviceID: nil, peerName: "Sara’s MacBook Pro", peerSymbol: "laptopcomputer",
+                                   names: ["Vacation 2026"])
         running.totalBytes = 18_000_000_000; running.bytes = 6_300_000_000; running.state = .transferring; running.speed = 240_000_000
         running.lanStreams = 4; running.everUsedLAN = true
         let done = TransferItem(direction: .incoming, deviceID: nil, peerName: "home-server", peerSymbol: "server.rack", names: ["backup.tar.zst"])
@@ -71,7 +71,7 @@ enum Snapshot {
         let turbo = ShelfModel()
         turbo.files = files
         if let d = devices.first {
-            let t = TransferItem(direction: .outgoing, deviceID: d.id, peerName: d.name, peerSymbol: d.symbol, names: ["Projekt"])
+            let t = TransferItem(direction: .outgoing, deviceID: d.id, peerName: d.name, peerSymbol: d.symbol, names: ["Project"])
             t.totalBytes = 4_200_000_000; t.bytes = 2_000_000_000; t.state = .transferring; t.speed = 312_000_000
             t.lanStreams = 4; t.bytesSaved = 1_240_000_000
             turbo.sent[d.id] = t
@@ -83,9 +83,9 @@ enum Snapshot {
         let relay = ShelfModel()
         relay.files = files
         if let d = devices.first {
-            let t = TransferItem(direction: .outgoing, deviceID: d.id, peerName: d.name, peerSymbol: d.symbol, names: ["Projekt"])
+            let t = TransferItem(direction: .outgoing, deviceID: d.id, peerName: d.name, peerSymbol: d.symbol, names: ["Project"])
             t.totalBytes = 4_200_000_000; t.bytes = 500_000_000; t.state = .transferring; t.speed = 6_000_000
-            t.hint = "Läuft über einen Relay-Server (UDP blockiert?) – deutlich langsamer als direkt."
+            t.hint = String(localized: "Running through a relay server (UDP blocked?) – much slower than direct.")
             relay.sent[d.id] = t
         }
 
@@ -100,27 +100,31 @@ enum Snapshot {
         if let d = devices.first { settings.setFavorite(id: d.id, name: d.name, slot: 1) }
         let demoPeers = Array(devices.prefix(2))
         settings.alwaysAcceptPeerIDs = demoPeers.map(\.id) + ["snapshot-offline-peer"]
-        settings.knownDeviceNames["snapshot-offline-peer"] = "Noahs MacBook Pro"
+        settings.knownDeviceNames["snapshot-offline-peer"] = "Noah’s MacBook Pro"
         SettingsPreview.relocationFolder = "Downloads"
         SettingsPreview.bench = BenchModel.demo(BenchModel.Result(bytes: OutgoingTransfer.benchSize, seconds: 0.31, usedLAN: true))
         if SettingsActions.openOnboarding == nil { SettingsActions.openOnboarding = {} }   // render the button as wired
 
-        // HUD toast in its three phases.
+        // HUD toast in its three phases – built from the same keys as the real toasts, so they localize alike.
+        let noah = "Noah’s MacBook Pro"
+        let itemCount = 3, percent = 41, favoriteSlot = 3
+        let what = String(localized: "\(itemCount) items")
         let sending = ToastModel()
-        sending.set(tone: .progress, symbol: "arrow.up.right", title: "→ Noahs MacBook Pro", detail: "Sende 3 Objekte · 41 % · 112 MB/s", fraction: 0.41)
+        sending.set(tone: .progress, symbol: "arrow.up.right", title: "→ \(noah)",
+                    detail: String(localized: "Sending \(what) · \(percent) %") + " · \(ByteFormat.speed(112_000_000))", fraction: 0.41)
         let sent = ToastModel()
-        sent.set(tone: .success, symbol: "checkmark.circle.fill", title: "Gesendet an Noahs MacBook Pro", detail: ByteFormat.string(4_200_000_000))
+        sent.set(tone: .success, symbol: "checkmark.circle.fill", title: String(localized: "Sent to \(noah)"), detail: ByteFormat.string(4_200_000_000))
         let declinedToast = ToastModel()
-        declinedToast.set(tone: .error, symbol: "xmark.circle.fill", title: "Abgelehnt", detail: "von Noahs MacBook Pro")
+        declinedToast.set(tone: .error, symbol: "xmark.circle.fill", title: String(localized: "Declined"), detail: String(localized: "by \(noah)"))
         let hint = ToastModel()
-        hint.set(tone: .info, symbol: "star", title: "Favorit 3 ist nicht belegt – Rechtsklick auf ein Gerät")
+        hint.set(tone: .info, symbol: "star", title: String(localized: "Favorite \(favoriteSlot) isn’t set – right-click a device"))
 
         for dark in [false, true] {
             let suffix = dark ? "dark" : "light"
             render(ShelfView(model: shelf, onClose: {}), to: dir.appendingPathComponent("shelf-\(suffix).png"), dark: dark)
             render(ShelfView(model: ShelfModel(), onClose: {}), to: dir.appendingPathComponent("shelf-empty-\(suffix).png"), dark: dark)
             render(ShelfView(model: keyShelf, onClose: {}), to: dir.appendingPathComponent("shelf-keys-\(suffix).png"), dark: dark)
-            // "2,4 GB in 8,1 s" shows for 6 s after the end, "Abgelehnt" for 8 s – restart the clocks for this render.
+            // "2.4 GB in 8.1 s" shows for 6 s after the end, "Declined" for 8 s – restart the clocks for this render.
             finished?.startedTransferringAt = Date().addingTimeInterval(-8.1); finished?.finishedAt = Date()
             declined?.finishedAt = Date()
             render(ShelfView(model: beats, onClose: {}), to: dir.appendingPathComponent("shelf-beats-\(suffix).png"), dark: dark)

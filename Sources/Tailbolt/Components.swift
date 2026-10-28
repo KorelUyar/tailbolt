@@ -214,7 +214,7 @@ struct SelfAvatar: View {
         .clipShape(Circle())
         .overlay(Circle().strokeBorder(.white.opacity(0.22), lineWidth: 0.5))
         .shadow(color: .black.opacity(0.12), radius: 3, y: 1)
-        .accessibilityLabel("Dieses Gerät: \(app.myName)")
+        .accessibilityLabel("This device: \(app.myName)")
     }
 
     private var symbolCircle: some View {
@@ -285,18 +285,18 @@ struct PathBadge {
 
     static func make(device: Device, transfer: TransferItem?) -> PathBadge? {
         if let t = transfer, t.isActive, t.usesLAN {
-            return PathBadge(label: "LAN-Turbo", tint: .accentColor, bolt: true,
-                             explanation: "LAN-Turbo: läuft direkt über das lokale Netzwerk, parallel zum Tailscale-Tunnel – schnellster Weg.")
+            return PathBadge(label: String(localized: "LAN Turbo"), tint: .accentColor, bolt: true,
+                             explanation: String(localized: "LAN Turbo: runs directly over the local network, alongside the Tailscale tunnel – the fastest path."))
         }
         switch device.peer.path {
-        case .lan: return PathBadge(label: "Direkt (LAN)", tint: .secondary, bolt: false,
-                                    explanation: "Direkte Verbindung im lokalen Netzwerk.")
-        case .direct: return PathBadge(label: "Direkt", tint: .secondary, bolt: false,
-                                       explanation: "Direkte WireGuard-Verbindung, ohne Relay.")
-        case .peerRelay: return PathBadge(label: "Peer-Relay", tint: .secondary, bolt: false,
-                                          explanation: "Läuft über ein anderes Gerät im Tailnet (Peer-Relay).")
-        case .relay: return PathBadge(label: "Relay", tint: .orange, bolt: false,
-                                      explanation: "Läuft über einen Tailscale-Relay-Server (DERP) – deutlich langsamer als direkt. Meist ist UDP blockiert.")
+        case .lan: return PathBadge(label: String(localized: "Direct (LAN)"), tint: .secondary, bolt: false,
+                                    explanation: String(localized: "Direct connection on the local network."))
+        case .direct: return PathBadge(label: String(localized: "Direct"), tint: .secondary, bolt: false,
+                                       explanation: String(localized: "Direct WireGuard connection, no relay."))
+        case .peerRelay: return PathBadge(label: String(localized: "Peer Relay"), tint: .secondary, bolt: false,
+                                          explanation: String(localized: "Runs through another device on your tailnet (peer relay)."))
+        case .relay: return PathBadge(label: String(localized: "Relay"), tint: .orange, bolt: false,
+                                      explanation: String(localized: "Runs through a Tailscale relay server (DERP) – much slower than direct. Usually UDP is blocked."))
         case .unknown: return nil
         }
     }
@@ -461,7 +461,7 @@ struct DeviceBubble: View {
         .accessibilityLabel(accessibilityText)
         .accessibilityValue(subtitle)
         .accessibilityAddTraits(.isButton)
-        .accessibilityHint(selected ? "Mit ⌘-Klick aus der Auswahl entfernen" : "Sendet die Dateien im Shelf an dieses Gerät. ⌘-Klick wählt mehrere Geräte aus.")
+        .accessibilityHint(selected ? String(localized: "⌘-click to remove from the selection") : String(localized: "Sends the files on the shelf to this device. ⌘-click selects several devices."))
     }
 
     // MARK: pieces
@@ -494,7 +494,7 @@ struct DeviceBubble: View {
                     .overlay(Circle().strokeBorder(.white.opacity(0.9), lineWidth: 1.2))
                     .offset(x: -size / 2 + 3, y: -size / 2 + 3)
                     .transition(.opacity)
-                    .help("Favorit \(slot)")
+                    .help("Favorite \(slot)")
             }
             if let t = transfer, showsRing {
                 ProgressRing(fraction: t.fraction,
@@ -564,21 +564,21 @@ struct DeviceBubble: View {
     @ViewBuilder
     private var favoriteMenu: some View {
         let current = settings.favoriteSlot(of: device.id)
-        Menu("Als Favorit") {
+        Menu("Set as Favorite") {
             ForEach(1...9, id: \.self) { slot in
                 Toggle(isOn: Binding(
                     get: { current == slot },
                     set: { on in settings.setFavorite(id: on ? device.id : nil, name: device.name, slot: slot) }
                 )) {
-                    Text("Favorit \(slot)" + (settings.shortcuts[.favorite(slot)].map { "   \($0.display)" } ?? ""))
+                    Text(String(localized: "Favorite \(slot)") + (settings.shortcuts[.favorite(slot)].map { "   \($0.display)" } ?? ""))
                 }
             }
         }
         if let current {
-            Button("Favorit \(current) entfernen") { settings.setFavorite(id: nil, name: nil, slot: current) }
+            Button("Remove Favorite \(current)") { settings.setFavorite(id: nil, name: nil, slot: current) }
         }
         Divider()
-        Button("Dateien auswählen und senden…") {
+        Button("Choose Files and Send…") {
             pickFiles { AppModel.shared.send($0, to: device) }
         }
     }
@@ -628,10 +628,10 @@ struct DeviceBubble: View {
     private var status: (text: String, color: Color)? {
         guard let t = transfer else { return nil }
         switch t.state {
-        case .preparing: return ("Vorbereiten…", .accentColor)
-        case .waiting: return ("Warten…", .accentColor)
+        case .preparing: return (String(localized: "Preparing…"), .accentColor)
+        case .waiting: return (String(localized: "Waiting…"), .accentColor)
         case .transferring:
-            if t.taildrop != nil { return ("Senden…", .accentColor) }
+            if t.taildrop != nil { return (String(localized: "Sending…"), .accentColor) }
             // Narrow no-break spaces (U+202F) before % and around the dot: Swiss typography, and it fits 84 pt.
             let sep = "\u{202F}·\u{202F}"
             var s = "\(Int(t.fraction * 100))\u{202F}%"
@@ -641,10 +641,10 @@ struct DeviceBubble: View {
                 if wideWhenActive, remaining >= 1 { s += sep + TransferItem.eta(remaining) }
             }
             return (s, .accentColor)
-        case .finishing: return ("Abschliessen…", .accentColor)
+        case .finishing: return (String(localized: "Finishing…"), .accentColor)
         case .finished: return recent(t, 6) ? (Self.finishedSummary(t), .green) : nil
-        case .declined: return recent(t, 8) ? ("Abgelehnt", .red) : nil
-        case .failed: return recent(t, 8) ? ("Fehlgeschlagen", .red) : nil
+        case .declined: return recent(t, 8) ? (String(localized: "Declined"), .red) : nil
+        case .failed: return recent(t, 8) ? (String(localized: "Failed"), .red) : nil
         case .cancelled: return nil
         }
     }
@@ -652,7 +652,7 @@ struct DeviceBubble: View {
     private var subtitle: String {
         if let status { return status.text }
         if device.viaTaildrop { return "Taildrop" }
-        return device.ownerName ?? (device.peer.isMine ? "Mein Gerät" : "")
+        return device.ownerName ?? (device.peer.isMine ? String(localized: "My device") : "")
     }
 
     private var subtitleColor: Color { status?.color ?? .secondary }
@@ -681,22 +681,22 @@ struct DeviceBubble: View {
     }
 
     private var tooltip: String {
-        var lines = [device.viaTaildrop ? "\(device.name) – via Taildrop (Tailbolt nicht installiert)" : device.name]
+        var lines = [device.viaTaildrop ? String(localized: "\(device.name) – via Taildrop (Tailbolt not installed)") : device.name]
         if let owner = device.ownerName { lines[0] += " · \(owner)" }
         if let badge = PathBadge.make(device: device, transfer: transfer) { lines.append(badge.explanation) }
-        if let lz4 = lz4Label { lines.append("\(lz4): LZ4 spart gerade so viel Übertragung.") }
-        if let keyHint { lines.append("Senden: \(keyHint)") }
+        if let lz4 = lz4Label { lines.append(String(localized: "\(lz4): what LZ4 compression is saving right now.")) }
+        if let keyHint { lines.append(String(localized: "Send: \(keyHint)")) }
         return lines.joined(separator: "\n")
     }
 
     private var accessibilityText: String {
         var parts = [device.name, "online"]
-        if let owner = device.ownerName { parts.append("von \(owner)") }
+        if let owner = device.ownerName { parts.append(String(localized: "owned by \(owner)")) }
         if device.viaTaildrop { parts.append("via Taildrop") }
         if let badge = PathBadge.make(device: device, transfer: transfer) { parts.append(badge.label) }
-        if let slot = settings.favoriteSlot(of: device.id) { parts.append("Favorit \(slot)") }
-        if selected { parts.append("ausgewählt") }
-        if let keyHint { parts.append("Senden: \(keyHint)") }
+        if let slot = settings.favoriteSlot(of: device.id) { parts.append(String(localized: "Favorite \(slot)")) }
+        if selected { parts.append(String(localized: "selected")) }
+        if let keyHint { parts.append(String(localized: "Send: \(keyHint)")) }
         return parts.joined(separator: ", ")
     }
 }

@@ -2,7 +2,7 @@ import AppKit
 import Carbon.HIToolbox
 import SwiftUI
 
-/// System-Settings-style shortcut field: click → "Tasten drücken…", press a combo, done. ⎋ cancels,
+/// System-Settings-style shortcut field: click → "Press keys…", press a combo, done. ⎋ cancels,
 /// the ⌫ button clears (= shortcut off). Refuses modifier-only presses, system combos and conflicts.
 /// The recording itself lives in `HotKeyCenter`, so closing the window or quitting always ends it.
 struct ShortcutRecorderView: View {
@@ -31,7 +31,7 @@ struct ShortcutRecorderView: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
-                .help("Tastenkürzel entfernen")
+                .help("Remove keyboard shortcut")
                 .opacity(combo != nil && !recording ? 1 : 0)
                 .disabled(combo == nil || recording)
             }
@@ -41,7 +41,7 @@ struct ShortcutRecorderView: View {
                     .foregroundStyle(.red)
                     .transition(.opacity)
             } else if hotKeys.failed.contains(action) {
-                Text("Vom System nicht zugelassen")
+                Text("Not allowed by the system")
                     .font(.system(size: 10))
                     .foregroundStyle(.orange)
             }
@@ -69,13 +69,13 @@ struct ShortcutRecorderView: View {
             .contentShape(Rectangle())
             .onHover { hover = $0 }
             .onTapGesture { recording ? hotKeys.cancelRecording() : hotKeys.beginRecording(action) }
-            .help(recording ? "Tasten drücken – ⎋ bricht ab" : "Klicken, um ein Tastenkürzel aufzunehmen")
+            .help(recording ? String(localized: "Press keys – ⎋ cancels") : String(localized: "Click to record a keyboard shortcut"))
             .animation(.easeOut(duration: 0.12), value: recording)
     }
 
     private var label: String {
-        if recording { return held.isEmpty ? "Tasten drücken…" : KeyCombo.symbols(for: held) }
-        return combo?.display ?? "Aufnehmen"
+        if recording { return held.isEmpty ? String(localized: "Press keys…") : KeyCombo.symbols(for: held) }
+        return combo?.display ?? String(localized: "Record")
     }
 
     private var labelColor: Color {
@@ -95,15 +95,15 @@ struct ShortcutsSettingsView: View {
     var body: some View {
         Form {
             Section {
-                Toggle("Globale Tastenkürzel aktiv", isOn: $settings.hotKeyEnabled)
-                Toggle("Kurze Einblendung beim Direktsenden", isOn: $settings.hudEnabled)
+                Toggle("Enable global keyboard shortcuts", isOn: $settings.hotKeyEnabled)
+                Toggle("Show a brief overlay when sending directly", isOn: $settings.hudEnabled)
             } header: {
-                Text("Tastenkürzel")
+                Text("Keyboard shortcuts")
             } footer: {
-                SettingsFooter("Direktsenden nimmt die Dateien im offenen Shelf, sonst die Finder-Auswahl. Die Zwischenablage (Dateien, Bilder, Text) landet zuerst im Shelf – ↩ sendet sie. Als vertraulich markierte Inhalte (Passwort-Manager) werden nie gesendet.")
+                SettingsFooter(String(localized: "Sending directly takes the files in the open shelf, otherwise the Finder selection. The clipboard (files, images, text) goes to the shelf first – ↩ sends it. Content marked as confidential (password managers) is never sent."))
             }
 
-            Section("Aktionen") {
+            Section("Actions") {
                 ForEach([ShortcutAction.openShelf, .sendClipboard, .sendToLast]) { action in
                     LabeledContent {
                         ShortcutRecorderView(action: action)
@@ -116,23 +116,23 @@ struct ShortcutsSettingsView: View {
             Section {
                 ForEach(1...9, id: \.self) { slot in favoriteRow(slot) }
             } header: {
-                Text("Favoriten")
+                Text("Favorites")
             } footer: {
-                SettingsFooter("Rechtsklick auf ein Gerät im Shelf oder Menü setzt ebenfalls einen Favoriten. Im Shelf senden die Zifferntasten 1–9 an das n-te Gerät.")
+                SettingsFooter(String(localized: "Right-clicking a device in the shelf or menu also sets a favorite. In the shelf, the number keys 1–9 send to the nth device."))
             }
 
             Section {
                 Toggle(isOn: Binding(get: { quickActionInstalled }, set: { setQuickAction($0) })) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Schnellaktion im Finder")
-                        Text("Rechtsklick auf Dateien → Schnellaktionen → «Mit Tailbolt senden»")
+                        Text("Quick Action in Finder")
+                        Text("Right-click files → Quick Actions → “Send with Tailbolt”")
                             .font(.system(size: 11)).foregroundStyle(.secondary)
                     }
                 }
                 Toggle(isOn: Binding(get: { cliInstalled }, set: { setCLI($0) })) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Befehl «tailbolt» im Terminal")
-                        Text("Verknüpft /usr/local/bin/tailbolt mit der App (fragt ggf. nach dem Admin-Passwort)")
+                        Text("“tailbolt” command in Terminal")
+                        Text("Links /usr/local/bin/tailbolt to the app (may ask for the admin password)")
                             .font(.system(size: 11)).foregroundStyle(.secondary)
                     }
                 }
@@ -141,7 +141,7 @@ struct ShortcutsSettingsView: View {
                         .font(.system(size: 11)).foregroundStyle(.red)
                 }
             } header: {
-                Text("Integration")
+                Text("Integrations")
             }
 
             // Gestures (shake, hold ⇧) live in Einstellungen → Senden.
@@ -149,8 +149,8 @@ struct ShortcutsSettingsView: View {
             Section {
                 HStack {
                     Spacer()
-                    Button("Tastenkürzel zurücksetzen") { settings.resetShortcuts() }
-                        .help("Alle Tastenkürzel auf ⌃⌥⌘B, ⌃⌥⌘V, ⌃⌥⌘L und ⌃⌥⌘1 … 9 zurücksetzen")
+                    Button("Reset Keyboard Shortcuts") { settings.resetShortcuts() }
+                        .help("Reset all keyboard shortcuts to ⌃⌥⌘B, ⌃⌥⌘V, ⌃⌥⌘L and ⌃⌥⌘1 … 9")
                 }
             }
         }
@@ -161,8 +161,8 @@ struct ShortcutsSettingsView: View {
         let current = settings.favoriteDeviceIDs[slot - 1]
         let online = app.devices.first { $0.id == current }
         return HStack(spacing: 10) {
-            Text("Favorit \(slot)")
-                .frame(width: 64, alignment: .leading)
+            Text("Favorite \(slot)")
+                .frame(width: 72, alignment: .leading)
             Picker("", selection: Binding(
                 get: { current ?? "" },
                 set: { id in
@@ -175,7 +175,7 @@ struct ShortcutsSettingsView: View {
                     Text(d.name).tag(d.id)
                 }
                 if let current, online == nil {
-                    Text("\(settings.knownDeviceNames[current] ?? "Gerät") (offline)").tag(current)
+                    Text("\(settings.knownDeviceNames[current] ?? String(localized: "Device")) (offline)").tag(current)
                 }
             }
             .labelsHidden()

@@ -33,8 +33,19 @@ dist/Tailbolt.app/Contents/MacOS/Tailbolt --snapshot <dir> [files…]   # render
 
 ## Conventions
 
-- UI copy: German (Swiss spelling: "ss", never "ß"), informal "du". Quotes in UI strings are Swiss guillemets
-  «…», never „…“. Code, comments, commits: English.
+- UI copy: **English in the source** (the base language and the default, whatever the system language), curly
+  quotes “…”. German lives in `Resources/de.lproj/Localizable.strings`, keyed by the English string: Swiss spelling
+  ("ss", never "ß"), informal "du", guillemets «…». Every new user-visible string needs a German line there.
+  - Literals in `Text`/`Button`/`Toggle`/`Label`/`Section`/`.help` are looked up automatically; everything else that
+    reaches the screen goes through `String(localized: "…")` (custom views with `String` parameters, menu items,
+    toasts, errors, ternaries). Interpolations become printf specifiers in the key: `String` → `%@`, `Int` → `%lld`,
+    `Double` → `%lf`; a literal `%` next to them is `%%`.
+  - Check German with `Tailbolt -AppleLanguages '(de)' -NSShowNonLocalizedStrings YES --snapshot <dir>`:
+    any key missing from the table renders in CAPITALS.
+  - The language choice (Settings → General) is `AppLanguage` in `Language.swift`; it writes the app's
+    `AppleLanguages` at launch, and switching asks for a restart. The Finder Quick Action is named after the
+    language too ("Send with Tailbolt" / "Mit Tailbolt senden"), the Services menu via `ServicesMenu.strings`.
+- Code, comments, commits: English.
 - UI state lives in `@MainActor @Observable` classes; engine callbacks (`onStateChange`) arrive on background
   threads → hop with `DispatchQueue.main.async`.
 - Panels are `NSPanel` subclasses with `.nonactivatingPanel` so they never steal focus from the app you're in;

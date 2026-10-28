@@ -13,7 +13,7 @@ final class IncomingPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
-/// Transient state the cards read: ⌥ held while the panel is key turns "Annehmen" into "Immer annehmen".
+/// Transient state the cards read: ⌥ held while the panel is key turns "Accept" into "Always Accept".
 @MainActor @Observable
 final class IncomingUIState {
     static let shared = IncomingUIState()
@@ -86,11 +86,11 @@ final class IncomingPanelController {
         }
     }
 
-    /// ⌥-click / ⌥⏎ on "Annehmen": this peer's offers are accepted without asking from now on.
+    /// ⌥-click / ⌥⏎ on "Accept": this peer's offers are accepted without asking from now on.
     func acceptAlways(_ item: TransferItem) {
         if let id = item.deviceID {
             Settings.shared.setAlwaysAccept(id, name: item.peerName, on: true)
-            ToastController.shared.flash("Von \(item.peerName) wird ab jetzt immer angenommen", symbol: "checkmark.shield", tone: .info, duration: 3)
+            ToastController.shared.flash(String(localized: "Offers from \(item.peerName) will now always be accepted"), symbol: "checkmark.shield", tone: .info, duration: 3)
         }
         AppModel.shared.accept(item)
         update()
@@ -114,8 +114,9 @@ final class IncomingPanelController {
     private func announceOffers() {
         for t in visibleItems where t.awaitingDecision && !announced.contains(t.id) {
             announced.insert(t.id)
-            let what = t.names.count == 1 ? "«\(t.names[0])»" : "\(t.names.count) Objekte"
-            let text = "\(t.peerName) möchte \(what) senden, \(ByteFormat.string(t.totalBytes)). Annehmen mit Eingabetaste, Ablehnen mit Escape."
+            let what = t.names.count == 1 ? String(localized: "“\(t.names[0])”") : String(localized: "\(t.names.count) items")
+            let size = ByteFormat.string(t.totalBytes)
+            let text = String(localized: "\(t.peerName) wants to send you \(what), \(size). Press Return to accept, Escape to decline.")
             NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
                                  userInfo: [.announcement: text, .priority: NSAccessibilityPriorityLevel.high.rawValue])
         }
@@ -251,7 +252,7 @@ final class IncomingPanelController {
 
 // MARK: - Shared bits
 
-/// Key glyph inside a button ("Annehmen ⏎").
+/// Key glyph inside a button ("Accept ⏎").
 struct KeyHintCap: View {
     let glyph: String
     var onAccent = false
@@ -373,8 +374,8 @@ struct IncomingCard: View {
                         Image(systemName: "xmark.circle.fill").font(.system(size: 14)).foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
-                    .help("Ausblenden")
-                    .accessibilityLabel("Ausblenden")
+                    .help("Dismiss")
+                    .accessibilityLabel("Dismiss")
                 }
             }
 
@@ -417,13 +418,13 @@ struct IncomingCard: View {
         HStack(spacing: 8) {
             Button { app.decline(item) } label: {
                 HStack(spacing: 6) {
-                    Text("Ablehnen")
+                    Text("Decline")
                     KeyHintCap(glyph: "⎋")
                 }
                 .frame(maxWidth: .infinity)
             }
             .buttonStyle(PanelButtonStyle())
-            .help("Ablehnen (⎋)")
+            .help("Decline (⎋)")
             Button {
                 if NSEvent.modifierFlags.contains(.option) {
                     IncomingPanelController.shared.acceptAlways(item)
@@ -432,14 +433,14 @@ struct IncomingCard: View {
                 }
             } label: {
                 HStack(spacing: 6) {
-                    Text(ui.optionHeld ? "Immer annehmen" : "Annehmen")
+                    Text(ui.optionHeld ? String(localized: "Always Accept") : String(localized: "Accept"))
                     KeyHintCap(glyph: ui.optionHeld ? "⌥⏎" : "⏎", onAccent: true)
                 }
                 .frame(maxWidth: .infinity)
             }
             .buttonStyle(PanelButtonStyle(prominent: true))
-            .help("Annehmen (⏎) · ⌥-Klick: immer von \(item.peerName) annehmen · ⌘⏎: annehmen und im Finder zeigen")
-            .accessibilityLabel(ui.optionHeld ? "Immer von \(item.peerName) annehmen" : "Annehmen")
+            .help("Accept (⏎) · ⌥-click: always accept from \(item.peerName) · ⌘⏎: accept and show in Finder")
+            .accessibilityLabel(ui.optionHeld ? String(localized: "Always accept from \(item.peerName)") : String(localized: "Accept"))
         }
         .animation(.easeOut(duration: 0.12), value: ui.optionHeld)
     }
@@ -453,9 +454,9 @@ struct IncomingCard: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 Spacer(minLength: 4)
-                Button("Abbrechen") { item.cancel() }
+                Button("Cancel") { item.cancel() }
                     .buttonStyle(LinkButtonStyle())
-                    .help("Übertragung abbrechen")
+                    .help("Cancel transfer")
             }
         }
     }
@@ -471,20 +472,34 @@ struct IncomingCard: View {
         }
     }
 
-    /// "eine Datei" / "einen Ordner" / "3 Objekte" – the names themselves sit in the item row below.
-    private var countText: String {
-        guard item.names.count == 1, let name = item.names.first else { return "\(item.names.count) Objekte" }
-        return isFolder(name) ? "einen Ordner" : "eine Datei"
+    /// A file / a folder / 3 items – the names themselves sit in the item row below.
+    private enum Count { case file, folder, items(Int) }
+
+    private var count: Count {
+        guard item.names.count == 1, let name = item.names.first else { return .items(item.names.count) }
+        return isFolder(name) ? .folder : .file
     }
 
     private var stateLine: String {
         switch item.state {
-        case .waiting, .preparing: return "möchte dir \(countText) senden"
-        case .transferring, .finishing: return "sendet dir \(countText)"
-        case .finished: return "In «\(Settings.shared.downloadDirectory.lastPathComponent)» gespeichert"
-        case .declined: return "Abgelehnt"
-        case .failed(let r): return "Fehler: \(r)"
-        case .cancelled(let r): return r ?? "Abgebrochen"
+        case .waiting, .preparing:
+            switch count {
+            case .file: return String(localized: "wants to send you a file")
+            case .folder: return String(localized: "wants to send you a folder")
+            case .items(let n): return String(localized: "wants to send you \(n) items")
+            }
+        case .transferring, .finishing:
+            switch count {
+            case .file: return String(localized: "is sending you a file")
+            case .folder: return String(localized: "is sending you a folder")
+            case .items(let n): return String(localized: "is sending you \(n) items")
+            }
+        case .finished:
+            let folder = Settings.shared.downloadDirectory.lastPathComponent
+            return String(localized: "Saved to “\(folder)”")
+        case .declined: return String(localized: "Declined")
+        case .failed(let r): return String(localized: "Error: \(r)")
+        case .cancelled(let r): return r ?? String(localized: "Cancelled")
         }
     }
 
@@ -505,20 +520,20 @@ struct IncomingCard: View {
         }
     }
 
-    /// "Projekt-Export, notes.pdf und 1 weitere · 2,4 GB" – falls back to "Projekt-Export und 2 weitere" when the
+    /// "Project Export, notes.pdf and 1 more · 2.4 GB" – falls back to "Project Export and 2 more" when the
     /// names would not fit on the line, measured with the row's font (a mid-word ellipsis reads worse than a count).
     private var itemsLine: String {
         let names = item.names
         let size = item.totalBytes > 0 ? " · \(ByteFormat.string(item.totalBytes))" : ""
         var s: String
         switch names.count {
-        case 0: s = "Dateien"
+        case 0: s = String(localized: "Files")
         case 1: s = names[0]
         case 2: s = "\(names[0]), \(names[1])"
-        default: s = "\(names[0]), \(names[1]) und \(names.count - 2) weitere"
+        default: s = String(localized: "\(names[0]), \(names[1]) and \(names.count - 2) more")
         }
         if names.count > 1, Self.width(of: s + size) > itemsLineWidth {
-            s = "\(names[0]) und \(names.count - 1) weitere"
+            s = String(localized: "\(names[0]) and \(names.count - 1) more")
         }
         return s + size
     }
@@ -538,7 +553,7 @@ struct IncomingCard: View {
 
     private var accessibilityText: String {
         var s = "\(item.peerName) \(stateLine). \(itemsLine)."
-        if item.awaitingDecision { s += " Annehmen mit Eingabetaste, Ablehnen mit Escape." }
+        if item.awaitingDecision { s += " " + String(localized: "Press Return to accept, Escape to decline.") }
         return s
     }
 }
@@ -731,9 +746,9 @@ struct ReceivedThumb: View {
                     .allowsHitTesting(false)
             }
         }
-        .help("Von \(entry.peerName) empfangen – Klick öffnet, Ziehen legt ab, Rechtsklick für mehr")
+        .help("Received from \(entry.peerName) – click to open, drag to drop, right-click for more")
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Empfangen von \(entry.peerName): \(entry.urls.map(\.lastPathComponent).joined(separator: ", "))")
+        .accessibilityLabel("Received from \(entry.peerName): \(entry.urls.map(\.lastPathComponent).joined(separator: ", "))")
         .accessibilityAddTraits(.isButton)
     }
 }
@@ -801,12 +816,12 @@ struct ThumbInteraction: NSViewRepresentable {
 
         override func rightMouseDown(with event: NSEvent) {
             let menu = NSMenu()
-            menu.addItem(withTitle: "Öffnen", action: #selector(open(_:)), keyEquivalent: "").target = self
-            menu.addItem(withTitle: "Im Finder zeigen", action: #selector(reveal(_:)), keyEquivalent: "").target = self
+            menu.addItem(withTitle: String(localized: "Open"), action: #selector(open(_:)), keyEquivalent: "").target = self
+            menu.addItem(withTitle: String(localized: "Show in Finder"), action: #selector(reveal(_:)), keyEquivalent: "").target = self
             menu.addItem(.separator())
-            menu.addItem(withTitle: "Löschen", action: #selector(trash(_:)), keyEquivalent: "").target = self
+            menu.addItem(withTitle: String(localized: "Move to Trash"), action: #selector(trash(_:)), keyEquivalent: "").target = self
             menu.addItem(.separator())
-            menu.addItem(withTitle: "Ausblenden", action: #selector(dismiss(_:)), keyEquivalent: "").target = self
+            menu.addItem(withTitle: String(localized: "Dismiss"), action: #selector(dismiss(_:)), keyEquivalent: "").target = self
             NSMenu.popUpContextMenu(menu, with: event, for: self)
         }
 

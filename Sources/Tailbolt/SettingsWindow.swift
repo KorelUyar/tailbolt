@@ -6,7 +6,7 @@ import TailboltCore
 /// Hooks for features that live elsewhere (onboarding, docs). Wired at launch; nil hides the control.
 @MainActor
 enum SettingsActions {
-    /// "Einführung erneut anzeigen" (Allgemein) – e.g. `{ OnboardingWindow.show() }`.
+    /// "Show Again…" (General) – e.g. `{ OnboardingWindow.show() }`.
     static var openOnboarding: (() -> Void)?
     /// "README" link in the Info tab; nil hides it.
     static var readmeURL: URL?
@@ -28,11 +28,11 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .general: return "Allgemein"
-        case .send: return "Senden"
-        case .receive: return "Empfangen"
-        case .shortcuts: return "Shortcuts"
-        case .info: return "Info"
+        case .general: return String(localized: "General")
+        case .send: return String(localized: "Send")
+        case .receive: return String(localized: "Receive")
+        case .shortcuts: return String(localized: "Shortcuts")
+        case .info: return String(localized: "About")
         }
     }
 
@@ -48,11 +48,11 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 
     var toolTip: String {
         switch self {
-        case .general: return "Start, Töne und Haptik"
-        case .send: return "Shelf, Gesten und Übertragung"
-        case .receive: return "Speicherort und automatisches Annehmen"
-        case .shortcuts: return "Tastenkürzel, Favoriten und Integrationen"
-        case .info: return "Version, Tailnet und Geschwindigkeitstest"
+        case .general: return String(localized: "Launch, sounds and haptics")
+        case .send: return String(localized: "Shelf, gestures and transfer")
+        case .receive: return String(localized: "Location and auto-accept")
+        case .shortcuts: return String(localized: "Keyboard shortcuts, favorites and integrations")
+        case .info: return String(localized: "Version, tailnet and speed test")
         }
     }
 
@@ -107,7 +107,7 @@ final class SettingsWindowController: NSObject, NSToolbarDelegate {
         w.title = tab.title
         w.tabbingMode = .disallowed
         w.collectionBehavior = [.moveToActiveSpace]
-        w.setAccessibilityLabel("Tailbolt Einstellungen")
+        w.setAccessibilityLabel(String(localized: "Tailbolt Settings"))
         hosting = NSHostingView(rootView: SettingsPane(tab: tab, decorate: decorate))
         hosting.sizingOptions = []   // the window owns its size; tall panes scroll
         w.contentView = hosting
@@ -258,10 +258,10 @@ struct GeneralSettingsView: View {
         Form {
             Section {
                 Toggle(isOn: $launchAtLogin) {
-                    SettingsRowLabel(title: "Beim Anmelden starten", subtitle: "Tailbolt wartet dann im Hintergrund auf Dateien.")
+                    SettingsRowLabel(title: String(localized: "Launch at login"), subtitle: String(localized: "Tailbolt then waits for files in the background."))
                 }
                 .onChange(of: launchAtLogin) { _, v in settings.launchAtLogin = v }
-                .help("Tailbolt beim Anmelden automatisch starten")
+                .help("Start Tailbolt automatically when you log in")
             }
 
             Section {
@@ -282,35 +282,35 @@ struct GeneralSettingsView: View {
                 }
             }
 
-            Section("Rückmeldungen") {
+            Section("Feedback") {
                 Toggle(isOn: $settings.soundsEnabled) {
-                    SettingsRowLabel(title: "Töne", subtitle: "Ein leiser Klang bei einer Anfrage und wenn etwas angekommen ist.")
+                    SettingsRowLabel(title: String(localized: "Sounds"), subtitle: String(localized: "A soft sound for a request and when something has arrived."))
                 }
-                .help("Töne beim Empfangen und nach dem Senden")
+                .help("Sounds when receiving and after sending")
                 Toggle(isOn: $settings.hapticsEnabled) {
-                    SettingsRowLabel(title: "Haptisches Feedback", subtitle: "Ein kurzer Trackpad-Klick beim Ablegen auf ein Gerät und beim Abschluss.")
+                    SettingsRowLabel(title: String(localized: "Haptic feedback"), subtitle: String(localized: "A short trackpad click when you drop onto a device and when it’s done."))
                 }
-                .help("Haptik auf dem Trackpad (Force Touch)")
+                .help("Haptics on the trackpad (Force Touch)")
             }
 
-            Section("Einführung") {
+            Section("Tour") {
                 LabeledContent {
-                    Button("Erneut anzeigen…") { SettingsActions.openOnboarding?() }
-                        .help("Die kurze Tour noch einmal ansehen")
+                    Button("Show Again…") { SettingsActions.openOnboarding?() }
+                        .help("Watch the short tour again")
                         .disabled(SettingsActions.openOnboarding == nil)
                 } label: {
-                    SettingsRowLabel(title: "Die kurze Tour", subtitle: "Shelf, Schütteln, Tastenkürzel und Empfangen in einer Minute.")
+                    SettingsRowLabel(title: String(localized: "The short tour"), subtitle: String(localized: "Shelf, shake, keyboard shortcuts and receiving in one minute."))
                 }
             }
 
             if let folder = relocationFolder {
-                Section("Ablageort") {
+                Section("App location") {
                     LabeledContent {
-                        Button("Nach Programme verschieben…") { relocate() }
-                            .help("Tailbolt in den Ordner «Programme» verschieben und neu starten")
+                        Button("Move to Applications…") { relocate() }
+                            .help("Move Tailbolt to the “Applications” folder and relaunch it")
                     } label: {
-                        SettingsRowLabel(title: "Tailbolt liegt in «\(folder)»",
-                                         subtitle: "Im Ordner «Programme» bleibt es am gleichen Ort und kann beim Anmelden starten.")
+                        SettingsRowLabel(title: String(localized: "Tailbolt is in “\(folder)”"),
+                                         subtitle: String(localized: "In the “Applications” folder it stays in one place and can launch at login."))
                     }
                 }
             }
@@ -345,54 +345,54 @@ struct SendSettingsView: View {
         Form {
             Section("Shelf") {
                 Toggle(isOn: $settings.closeShelfAfterSend) {
-                    SettingsRowLabel(title: "Nach erfolgreichem Senden schliessen")
+                    SettingsRowLabel(title: String(localized: "Close after sending successfully"))
                 }
-                .help("Das Shelf verschwindet, sobald alles angekommen ist")
+                .help("The shelf disappears as soon as everything has arrived")
             }
 
             Section {
                 Toggle(isOn: $settings.shakeToOpen) {
-                    SettingsRowLabel(title: "Schütteln beim Ziehen öffnet das Shelf",
-                                     subtitle: "Dateien ziehen und den Cursor kurz hin und her bewegen.")
+                    SettingsRowLabel(title: String(localized: "Shake while dragging to open the shelf"),
+                                     subtitle: String(localized: "Drag files and quickly move the pointer back and forth."))
                 }
-                .help("Shelf durch Schütteln der Maus beim Ziehen öffnen")
-                LabeledContent("Empfindlichkeit") {
-                    Picker("Empfindlichkeit", selection: $settings.shakeSensitivity) {
+                .help("Open the shelf by shaking the mouse while dragging")
+                LabeledContent("Sensitivity") {
+                    Picker("Sensitivity", selection: $settings.shakeSensitivity) {
                         ForEach(ShakeSensitivity.allCases) { Text($0.label).tag($0) }
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
                     .fixedSize()
-                    .help("Wie kräftig geschüttelt werden muss")
+                    .help("How hard you need to shake")
                 }
                 .disabled(!settings.shakeToOpen)
                 Toggle(isOn: $settings.shiftDragTrigger) {
-                    SettingsRowLabel(title: "⇧ gedrückt halten öffnet das Shelf",
-                                     subtitle: "Beim Ziehen eine Viertelsekunde lang – für alle, die lieber nicht schütteln.")
+                    SettingsRowLabel(title: String(localized: "Hold ⇧ to open the shelf"),
+                                     subtitle: String(localized: "For a quarter of a second while dragging – for anyone who’d rather not shake."))
                 }
-                .help("Shelf durch Halten der Umschalttaste beim Ziehen öffnen")
+                .help("Open the shelf by holding Shift while dragging")
             } header: {
-                Text("Gesten")
+                Text("Gestures")
             } footer: {
-                SettingsFooter("Das Shelf erscheint unter dem Cursor: Dateien darauf fallen lassen oder direkt auf ein Gerät ziehen.")
+                SettingsFooter(String(localized: "The shelf appears under the pointer: drop files onto it or drag them straight onto a device."))
             }
 
             Section {
                 Toggle(isOn: $settings.lanTurboEnabled) {
-                    SettingsRowLabel(title: "LAN-Turbo",
-                                     subtitle: "Geräte im selben Netzwerk bekommen zusätzliche direkte Verbindungen am Tunnel vorbei – weiterhin Ende-zu-Ende verschlüsselt.")
+                    SettingsRowLabel(title: String(localized: "LAN Turbo"),
+                                     subtitle: String(localized: "Devices on the same network get extra direct connections that bypass the tunnel – still end-to-end encrypted."))
                 }
-                .help("Direkte LAN-Verbindungen neben dem Tailscale-Tunnel nutzen")
+                .help("Use direct LAN connections alongside the Tailscale tunnel")
                 Toggle(isOn: $settings.lz4Enabled) {
-                    SettingsRowLabel(title: "LZ4-Kompression",
-                                     subtitle: "Verkleinert komprimierbare Dateien unterwegs. Fotos, Videos und Archive bleiben unangetastet.")
+                    SettingsRowLabel(title: String(localized: "LZ4 compression"),
+                                     subtitle: String(localized: "Shrinks compressible files in transit. Photos, videos and archives are left untouched."))
                 }
                 .disabled(!LZ4.available)
-                .help(LZ4.available ? "Daten auf dem Weg komprimieren" : "LZ4 ist auf diesem Mac nicht verfügbar")
+                .help(LZ4.available ? String(localized: "Compress data in transit") : String(localized: "LZ4 isn’t available on this Mac"))
             } header: {
-                Text("Übertragung")
+                Text("Transfer")
             } footer: {
-                if !LZ4.available { SettingsFooter("LZ4 ist auf diesem Mac nicht verfügbar.") }
+                if !LZ4.available { SettingsFooter(String(localized: "LZ4 isn’t available on this Mac.")) }
             }
         }
         .formStyle(.grouped)
@@ -412,8 +412,8 @@ struct ReceiveSettingsView: View {
 
     var body: some View {
         Form {
-            Section("Speicherort") {
-                LabeledContent("Speichern in") {
+            Section("Location") {
+                LabeledContent("Save to") {
                     HStack(spacing: 8) {
                         Image(nsImage: NSWorkspace.shared.icon(forFile: settings.downloadDirectory.path))
                             .resizable()
@@ -422,26 +422,26 @@ struct ReceiveSettingsView: View {
                             .lineLimit(1)
                             .truncationMode(.middle)
                             .foregroundStyle(.secondary)
-                        Button("Ändern…") { chooseFolder() }
-                            .help("Anderen Ordner für empfangene Dateien wählen")
+                        Button("Change…") { chooseFolder() }
+                            .help("Choose a different folder for received files")
                     }
                 }
             }
 
             Section {
-                Toggle("Von meinen eigenen Geräten", isOn: $settings.autoAcceptOwnDevices)
-                    .help("Was von deinen eigenen Geräten kommt, landet ohne Nachfrage im Ordner")
-                Toggle("Von Favoriten", isOn: $settings.autoAcceptFavorites)
-                    .help("Geräte mit einem Favoriten-Platz (⌃⌥⌘1 … 9) müssen nicht fragen")
+                Toggle("From my own devices", isOn: $settings.autoAcceptOwnDevices)
+                    .help("Anything from your own devices goes straight into the folder without asking")
+                Toggle("From favorites", isOn: $settings.autoAcceptFavorites)
+                    .help("Devices with a favorite slot (⌃⌥⌘1 … 9) don’t need to ask")
             } header: {
-                Text("Automatisch annehmen")
+                Text("Accept automatically")
             } footer: {
-                SettingsFooter("Alle anderen Anfragen erscheinen als Karte oben rechts – ↩ nimmt an, ⎋ lehnt ab.")
+                SettingsFooter(String(localized: "All other requests appear as a card in the top-right corner – ↩ accepts, ⎋ declines."))
             }
 
             Section {
                 if settings.alwaysAcceptPeerIDs.isEmpty {
-                    Text("Noch keine Geräte.")
+                    Text("No devices yet.")
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(settings.alwaysAcceptPeerIDs, id: \.self) { id in
@@ -449,24 +449,24 @@ struct ReceiveSettingsView: View {
                     }
                 }
             } header: {
-                Text("Immer annehmen von")
+                Text("Always accept from")
             } footer: {
-                SettingsFooter("⌥-Klick auf «Annehmen» bei einer Anfrage nimmt das Gerät in diese Liste auf.")
+                SettingsFooter(String(localized: "⌥-click “Accept” on a request to add the device to this list."))
             }
 
-            Section("Berechtigung") {
+            Section("Permission") {
                 LabeledContent {
-                    Button(networkAsked ? "Angefragt" : "Zugriff erlauben…") {
+                    Button(networkAsked ? String(localized: "Requested") : String(localized: "Allow Access…")) {
                         LocalNetworkPermission.prime()
                         networkAsked = true
                     }
                     .disabled(networkAsked)
-                    .help("Löst die macOS-Nachfrage für das lokale Netzwerk aus")
+                    .help("Shows the macOS prompt for local network access")
                 } label: {
-                    SettingsRowLabel(title: "Lokales Netzwerk",
+                    SettingsRowLabel(title: String(localized: "Local Network"),
                                      subtitle: networkAsked
-                                        ? "Fragt macOS nicht, ist der Zugriff bereits geregelt: Systemeinstellungen → Datenschutz & Sicherheit → Lokales Netzwerk."
-                                        : "macOS fragt einmal nach. Ohne Erlaubnis läuft alles durch den Tailscale-Tunnel und LAN-Turbo bleibt aus.")
+                                        ? String(localized: "If macOS doesn’t ask, access is already settled: System Settings → Privacy & Security → Local Network.")
+                                        : String(localized: "macOS asks once. Without permission, everything goes through the Tailscale tunnel and LAN Turbo stays off."))
                 }
             }
         }
@@ -476,7 +476,7 @@ struct ReceiveSettingsView: View {
 
     private func alwaysAcceptRow(_ id: String) -> some View {
         let device = app.devices.first { $0.id == id }
-        let name = device?.name ?? settings.knownDeviceNames[id] ?? "Gerät"
+        let name = device?.name ?? settings.knownDeviceNames[id] ?? String(localized: "Device")
         return HStack(spacing: 10) {
             Image(systemName: device?.symbol ?? "desktopcomputer")
                 .font(.system(size: 13))
@@ -497,8 +497,8 @@ struct ReceiveSettingsView: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.borderless)
-            .help("\(name) aus der Liste entfernen")
-            .accessibilityLabel("\(name) entfernen")
+            .help("Remove \(name) from the list")
+            .accessibilityLabel("Remove \(name)")
         }
     }
 
@@ -508,8 +508,8 @@ struct ReceiveSettingsView: View {
         p.canChooseFiles = false
         p.canCreateDirectories = true
         p.directoryURL = settings.downloadDirectory
-        p.prompt = "Wählen"
-        p.message = "Wohin sollen empfangene Dateien?"
+        p.prompt = String(localized: "Choose")
+        p.message = String(localized: "Where should received files go?")
         if p.runModal() == .OK, let url = p.url { settings.downloadDirectory = url }
     }
 }

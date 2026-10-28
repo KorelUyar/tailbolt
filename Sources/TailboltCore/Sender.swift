@@ -169,11 +169,11 @@ public final class OutgoingTransfer: TransferBase {
             try control.send(makeHello(name: myName))
             control.setReceiveTimeout(10)
             let theirHello = try control.receive()
-            guard theirHello.t == "hello" else { throw SocketError("Unerwartete Antwort") }
+            guard theirHello.t == "hello" else { throw SocketError(String(localized: "Unexpected response")) }
             let caps = Set(theirHello.caps ?? [])
             allowCompression = compressionEnabled && LZ4.available && caps.contains("lz4") && !isBench
             if isBench && (theirHello.v ?? 1) < 2 {
-                throw SocketError("Tailbolt auf der Gegenseite ist zu alt für den Test")
+                throw SocketError(String(localized: "Tailbolt on the other device is too old for the test"))
             }
 
             chunkSize = Tailbolt.chunkSize(forTotal: totalBytes)
@@ -191,9 +191,9 @@ public final class OutgoingTransfer: TransferBase {
             switch reply.t {
             case "accept": break
             case "decline":
-                setState(.declined(reply.reason)); return
+                setState(.declined(reply.reason.map(Tailbolt.localizedReason))); return
             default:
-                throw SocketError(reply.reason ?? "Empfänger hat abgelehnt")
+                throw SocketError(reply.reason.map(Tailbolt.localizedReason) ?? String(localized: "The recipient declined"))
             }
             if isTerminal { return }
             transferStart = Date()
@@ -234,12 +234,12 @@ public final class OutgoingTransfer: TransferBase {
                 group.wait()
                 if let start = transferStart { transferSeconds = Date().timeIntervalSince(start) }
                 if isTerminal { return }
-                guard queue.allAcked else { throw SocketError("Übertragung unvollständig") }
+                guard queue.allAcked else { throw SocketError(String(localized: "Transfer incomplete")) }
             }
 
             setState(.finishing)
             if doneSignal.wait(timeout: .now() + 600) == .timedOut {
-                throw SocketError("Empfänger antwortet nicht")
+                throw SocketError(String(localized: "The recipient isn’t responding"))
             }
             lock.lock(); let ok = receiverFinished; lock.unlock()
             if ok { setState(.finished) }
@@ -269,9 +269,9 @@ public final class OutgoingTransfer: TransferBase {
             lock.lock(); receiverFinished = true; lock.unlock()
         } else if !isTerminal {
             if let msg, msg.t == "error" {
-                setState(.failed(msg.reason ?? "Fehler beim Empfänger"))
+                setState(.failed(msg.reason.map(Tailbolt.localizedReason) ?? String(localized: "Error on the recipient’s side")))
             } else {
-                setState(.cancelled("Empfänger hat abgebrochen"))
+                setState(.cancelled(String(localized: "The recipient cancelled")))
             }
         }
         doneSignal.signal()
@@ -286,7 +286,7 @@ public final class OutgoingTransfer: TransferBase {
         var hello = Msg(t: "data")
         hello.id = id
         if ep.lan {
-            guard let key = sessionKey else { throw SocketError("Kein Sitzungsschlüssel") }
+            guard let key = sessionKey else { throw SocketError(String(localized: "No session key")) }
             s.tuneLiveness(dead: 8)
             hello.ci = ci
             try s.send(hello)                         // plaintext envelope, everything after is sealed
@@ -296,7 +296,7 @@ public final class OutgoingTransfer: TransferBase {
             try secure.send(lanHello)
             secure.setReceiveTimeout(3)
             let ok = try secure.receive()
-            guard ok.t == "lan-ok", ok.nonce == lanHello.nonce else { throw SocketError("LAN-Handshake fehlgeschlagen") }
+            guard ok.t == "lan-ok", ok.nonce == lanHello.nonce else { throw SocketError(String(localized: "LAN handshake failed")) }
             secure.setReceiveTimeout(120)
             return secure
         }
@@ -354,9 +354,12 @@ public final class OutgoingTransfer: TransferBase {
                     inflight.add(chunk)
                     if chunk.file != fileIndex && !isBench {
                         if fd >= 0 { close(fd) }
-                        guard let path = sources[chunk.file] else { throw SourceError("Quelle fehlt") }
+                        guard let path = sources[chunk.file] else { throw SourceError(String(localized: "Source missing")) }
                         fd = open(path, O_RDONLY)
-                        guard fd >= 0 else { throw SourceError("\((path as NSString).lastPathComponent) nicht lesbar") }
+                        guard fd >= 0 else {
+                            let name = (path as NSString).lastPathComponent
+                            throw SourceError(String(localized: "Can’t read \(name)"))
+                        }
                         fcntl(fd, F_RDAHEAD, 1)
                         if items[chunk.file].s >= Tailbolt.noCacheThreshold { fcntl(fd, F_NOCACHE, 1) }
                         fileIndex = chunk.file
@@ -372,7 +375,7 @@ public final class OutgoingTransfer: TransferBase {
                     }
                     while got < want {
                         let n = pread(fd, raw + got, want - got, chunk.offset + Int64(got))
-                        guard n > 0 else { throw SourceError("Datei wurde während des Sendens verändert") }
+                        guard n > 0 else { throw SourceError(String(localized: "A file changed while it was being sent")) }
                         got += n
                     }
 
@@ -397,7 +400,7 @@ public final class OutgoingTransfer: TransferBase {
                     inflight.sent(chunk.key, payload: chunk.length, wire: Int64(wireLength))
                     if isTerminal { return }
                 }
-                guard inflight.drain() else { throw SocketError("Verbindung unterbrochen") }
+                guard inflight.drain() else { throw SocketError(String(localized: "Connection interrupted")) }
                 try? s.send(Msg(t: "bye"))
                 untrack(s)
                 s.close()
@@ -431,7 +434,10 @@ public final class OutgoingTransfer: TransferBase {
                 // outage must not kill a transfer whose control connection is still fine.
                 if failures > 10 {
                     lock.lock(); let others = liveWorkers - 1; lock.unlock()
-                    if others <= 0 && !queue.allAcked { setState(.failed("Verbindung verloren: \(error)")) }
+                    if others <= 0 && !queue.allAcked {
+                        let detail = "\(error)"
+                        setState(.failed(String(localized: "Connection lost: \(detail)")))
+                    }
                     return
                 }
                 Thread.sleep(forTimeInterval: min(0.5 * Double(failures), 3))

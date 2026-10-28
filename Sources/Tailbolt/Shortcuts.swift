@@ -130,10 +130,12 @@ enum ShortcutAction: String, CaseIterable, Codable, Identifiable {
 
     var title: String {
         switch self {
-        case .openShelf: return "Shelf öffnen"
-        case .sendClipboard: return "Zwischenablage senden"
-        case .sendToLast: return "An letztes Gerät senden"
-        default: return "An Favorit \(favoriteSlot ?? 0) senden"
+        case .openShelf: return String(localized: "Open Shelf")
+        case .sendClipboard: return String(localized: "Send clipboard")
+        case .sendToLast: return String(localized: "Send to last device")
+        default:
+            let slot = favoriteSlot ?? 0
+            return String(localized: "Send to favorite \(slot)")
         }
     }
 
@@ -293,15 +295,15 @@ final class HotKeyCenter {
         }
         guard let c = KeyCombo(event: event) else { return }
         if !c.isValid {
-            recordingNote = RecordingNote(action: action, text: "Mit ⌘, ⌃ oder ⌥ kombinieren")
+            recordingNote = RecordingNote(action: action, text: String(localized: "Combine with ⌘, ⌃ or ⌥"))
             return
         }
         if c.isReserved {
-            recordingNote = RecordingNote(action: action, text: "Vom System belegt")
+            recordingNote = RecordingNote(action: action, text: String(localized: "Reserved by the system"))
             return
         }
         if let other = Settings.shared.shortcuts.first(where: { $0.key != action && $0.value == c })?.key {
-            recordingNote = RecordingNote(action: action, text: "Bereits belegt: \(other.title)")
+            recordingNote = RecordingNote(action: action, text: String(localized: "Already in use: \(other.title)"))
             return
         }
         recordingNote = nil
@@ -337,7 +339,7 @@ final class HotKeyCenter {
             }
             let urls = ClipboardPackager.urls()
             guard !urls.isEmpty else {
-                ToastController.shared.flash("Zwischenablage ist leer", symbol: "clipboard", tone: .error)
+                ToastController.shared.flash(String(localized: "Clipboard is empty"), symbol: "clipboard", tone: .error)
                 return
             }
             shelf.show(at: nil, files: urls, keyboard: true)
@@ -346,7 +348,7 @@ final class HotKeyCenter {
             guard let payload = payload() else { return }
             guard let id = Settings.shared.lastDeviceID else {
                 shelf.show(at: nil, files: payload.urls, keyboard: true)
-                ToastController.shared.flash("Noch an kein Gerät gesendet – Gerät wählen", symbol: "hand.tap", tone: .info, duration: 3)
+                ToastController.shared.flash(String(localized: "Nothing sent to a device yet – choose a device"), symbol: "hand.tap", tone: .info, duration: 3)
                 return
             }
             sendDirect(payload, to: id)
@@ -355,14 +357,14 @@ final class HotKeyCenter {
             guard let slot = action.favoriteSlot, let payload = payload() else { return }
             guard let id = Settings.shared.favoriteDeviceIDs[slot - 1] else {
                 shelf.show(at: nil, files: payload.urls, keyboard: true)
-                ToastController.shared.flash("Favorit \(slot) ist nicht belegt – Rechtsklick auf ein Gerät", symbol: "star", tone: .info, duration: 3)
+                ToastController.shared.flash(String(localized: "Favorite \(slot) isn’t set – right-click a device"), symbol: "star", tone: .info, duration: 3)
                 return
             }
             sendDirect(payload, to: id)
         }
     }
 
-    private static let concealedHint = "Zwischenablage ist vertraulich – nicht gesendet"
+    private static var concealedHint: String { String(localized: "Clipboard is marked confidential – not sent") }
 
     /// Where a direct send got its files from.
     private enum PayloadSource { case shelf, finder, clipboard }
@@ -378,16 +380,16 @@ final class HotKeyCenter {
     private func sendDirect(_ payload: Payload, to id: String) {
         let shelf = ShelfController.shared
         let device = AppModel.shared.devices.first { $0.id == id }
-        let name = device?.name ?? Settings.shared.knownDeviceNames[id] ?? "Das Gerät"
+        let name = device?.name ?? Settings.shared.knownDeviceNames[id] ?? String(localized: "The device")
         guard device != nil else {
             shelf.show(at: nil, files: payload.urls, keyboard: true)
-            ToastController.shared.flash("\(name) ist nicht online", symbol: "wifi.slash", tone: .error, duration: 3)
+            ToastController.shared.flash(String(localized: "\(name) is not online"), symbol: "wifi.slash", tone: .error, duration: 3)
             return
         }
         if payload.source == .clipboard {
             shelf.show(at: nil, files: payload.urls, keyboard: true)
             shelf.model.selectedID = id
-            ToastController.shared.flash("Zwischenablage im Shelf – ↩ sendet an \(name)", symbol: "doc.on.clipboard", tone: .info, duration: 3)
+            ToastController.shared.flash(String(localized: "Clipboard is in the Shelf – ↩ sends it to \(name)"), symbol: "doc.on.clipboard", tone: .info, duration: 3)
             return
         }
         if let item = AppModel.shared.sendDirect(payload.urls, to: id), shelf.isVisible {
@@ -403,7 +405,7 @@ final class HotKeyCenter {
         let shelf = ShelfController.shared
         if shelf.isVisible, !shelf.model.files.isEmpty { return Payload(urls: shelf.model.files, source: .shelf) }
         guard let selection = FinderSelection.current() else {
-            ToastController.shared.flash("Finder-Auswahl nicht lesbar – Automation für Tailbolt in den Systemeinstellungen erlauben",
+            ToastController.shared.flash(String(localized: "Can’t read the Finder selection – allow Automation for Tailbolt in System Settings"),
                                          symbol: "exclamationmark.triangle", tone: .error, duration: 4)
             return nil
         }
@@ -414,7 +416,7 @@ final class HotKeyCenter {
         }
         let clip = ClipboardPackager.urls()
         if !clip.isEmpty { return Payload(urls: clip, source: .clipboard) }
-        ToastController.shared.flash("Nichts zum Senden – im Finder auswählen oder etwas kopieren", symbol: "doc.on.clipboard", tone: .error, duration: 3)
+        ToastController.shared.flash(String(localized: "Nothing to send – select something in the Finder or copy something"), symbol: "doc.on.clipboard", tone: .error, duration: 3)
         return nil
     }
 }
@@ -453,15 +455,15 @@ enum ClipboardPackager {
 
         let stamp = Self.stamp()
         if let png = pb.data(forType: .png) ?? pb.data(forType: .tiff).flatMap({ NSBitmapImageRep(data: $0)?.representation(using: .png, properties: [:]) }) {
-            return write(png, name: "Bild \(stamp).png")
+            return write(png, name: String(localized: "Image \(stamp).png"))
         }
         if let text = pb.string(forType: .string), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             let isLink = !trimmed.contains(where: \.isWhitespace) && (trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://"))
-            return write(Data(text.utf8), name: "\(isLink ? "Link" : "Text") \(stamp).txt")
+            return write(Data(text.utf8), name: isLink ? String(localized: "Link \(stamp).txt") : String(localized: "Text \(stamp).txt"))
         }
         if let rtf = pb.data(forType: .rtf) {
-            return write(rtf, name: "Text \(stamp).rtf")
+            return write(rtf, name: String(localized: "Text \(stamp).rtf"))
         }
         return []
     }

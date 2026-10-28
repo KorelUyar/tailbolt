@@ -6,25 +6,58 @@ struct InstallError: LocalizedError {
     var errorDescription: String? { message }
 }
 
-/// Finder → right-click → Quick Actions → "Mit Tailbolt senden". A Quick Action is an Automator
+/// Finder → right-click → Quick Actions → "Send with Tailbolt". A Quick Action is an Automator
 /// workflow bundle in ~/Library/Services; this writes the same plists Automator would (one
 /// "Run Shell Script" action that hands the selected files to the app via `open`).
+/// The bundle's file name is the menu title Finder shows, so it follows the UI language.
 enum QuickActionInstaller {
-    static let name = "Mit Tailbolt senden"
     static let bundleID = "com.koreluyar.tailbolt"
 
-    static var bundleURL: URL {
+    static func name(for language: AppLanguage) -> String {
+        switch language {
+        case .english: return "Send with Tailbolt"
+        case .german: return "Mit Tailbolt senden"
+        }
+    }
+
+    /// Menu title (and file name) in the current UI language.
+    static var name: String { name(for: AppLanguage.current) }
+
+    /// Names the workflow may have been installed under in another language.
+    private static var otherNames: [String] {
+        AppLanguage.allCases.filter { $0 != AppLanguage.current }.map { name(for: $0) }
+    }
+
+    static func bundleURL(named name: String) -> URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Services/\(name).workflow", isDirectory: true)
     }
 
+    static var bundleURL: URL { bundleURL(named: name) }
+
+    private static func exists(named name: String) -> Bool {
+        FileManager.default.fileExists(atPath: bundleURL(named: name).appendingPathComponent("Contents/document.wflow").path)
+    }
+
+    /// True for the workflow under any language's name.
     static var isInstalled: Bool {
-        FileManager.default.fileExists(atPath: bundleURL.appendingPathComponent("Contents/document.wflow").path)
+        AppLanguage.allCases.contains { exists(named: name(for: $0)) }
     }
 
     static func install() throws {
         try write(to: bundleURL)
+        for other in otherNames {
+            let url = bundleURL(named: other)
+            if FileManager.default.fileExists(atPath: url.path) { try? FileManager.default.removeItem(at: url) }
+        }
         refreshServices()
+    }
+
+    /// After a language switch: a workflow installed under the other language's name is reinstalled
+    /// under the current one, so Finder's menu title matches the UI.
+    static func migrateIfNeeded() {
+        guard !exists(named: name), otherNames.contains(where: { exists(named: $0) }) else { return }
+        try? install()
     }
 
     /// Writes the .workflow bundle at `url` (also used by `--snapshot` to inspect the output).
@@ -36,8 +69,11 @@ enum QuickActionInstaller {
     }
 
     static func uninstall() throws {
-        if FileManager.default.fileExists(atPath: bundleURL.path) {
-            try FileManager.default.removeItem(at: bundleURL)
+        for language in AppLanguage.allCases {
+            let url = bundleURL(named: name(for: language))
+            if FileManager.default.fileExists(atPath: url.path) {
+                try FileManager.default.removeItem(at: url)
+            }
         }
         refreshServices()
     }
@@ -164,7 +200,7 @@ enum CLIInstaller {
     }
 
     static func install() throws {
-        guard let target else { throw InstallError("tailbolt-cli wurde im App-Bundle nicht gefunden") }
+        guard let target else { throw InstallError(String(localized: "tailbolt-cli wasn’t found in the app bundle")) }
         let fm = FileManager.default
         do {
             try fm.createDirectory(at: link.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -192,7 +228,7 @@ enum CLIInstaller {
         NSAppleScript(source: source)?.executeAndReturnError(&error)
         if let error {
             let code = error[NSAppleScript.errorNumber] as? Int
-            throw InstallError(code == -128 ? "Abgebrochen" : (error[NSAppleScript.errorMessage] as? String ?? "Fehlgeschlagen"))
+            throw InstallError(code == -128 ? String(localized: "Cancelled") : (error[NSAppleScript.errorMessage] as? String ?? String(localized: "Failed")))
         }
     }
 

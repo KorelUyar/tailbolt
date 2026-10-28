@@ -28,10 +28,10 @@ public struct TailnetPeer: Identifiable, Hashable, Sendable {
 
         public var label: String {
             switch self {
-            case .lan: return "Direkt (LAN)"
-            case .direct: return "Direkt"
-            case .peerRelay: return "Peer-Relay"
-            case .relay: return "Relay"
+            case .lan: return String(localized: "Direct (LAN)")
+            case .direct: return String(localized: "Direct")
+            case .peerRelay: return String(localized: "Peer Relay")
+            case .relay: return String(localized: "Relay")
             case .unknown: return ""
             }
         }
@@ -264,7 +264,7 @@ public final class TaildropTransfer: @unchecked Sendable {
     }
 
     public func start() {
-        guard let cli = Tailnet.cliPath else { onFinish?("Tailscale-CLI nicht gefunden"); return }
+        guard let cli = Tailnet.cliPath else { onFinish?(String(localized: "Tailscale CLI not found")); return }
         let p = Tailnet.cliProcess(cli, ["file", "cp", "--update-interval=0"] + urls.map(\.path) + ["\(target):"])
         let err = Pipe()
         p.standardError = err
@@ -272,7 +272,7 @@ public final class TaildropTransfer: @unchecked Sendable {
         p.terminationHandler = { [weak self] proc in
             let msg = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            self?.onFinish?(proc.terminationStatus == 0 ? nil : (msg?.isEmpty == false ? msg : "Taildrop fehlgeschlagen"))
+            self?.onFinish?(proc.terminationStatus == 0 ? nil : (msg?.isEmpty == false ? msg : String(localized: "Taildrop failed")))
         }
         process = p
         do { try p.run() } catch { onFinish?("\(error)") }

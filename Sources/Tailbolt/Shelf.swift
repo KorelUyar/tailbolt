@@ -433,22 +433,22 @@ struct ShelfView: View {
                     .background(Circle().fill(.quaternary))
             }
             .buttonStyle(.plain)
-            .help("Schliessen (⎋)")
-            .accessibilityLabel("Schliessen")
+            .help("Close (⎋)")
+            .accessibilityLabel("Close")
             Spacer()
             Text("Tailbolt")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.secondary)
             Spacer()
             Menu {
-                Button("Dateien hinzufügen…") { pickFiles { model.add($0) } }
+                Button("Add Files…") { pickFiles { model.add($0) } }
                 if !model.files.isEmpty {
-                    Button("Im Finder zeigen") { NSWorkspace.shared.activateFileViewerSelecting(model.files) }
-                    Button("Shelf leeren") { withAnimation { model.files.removeAll() } }
+                    Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting(model.files) }
+                    Button("Clear Shelf") { withAnimation { model.files.removeAll() } }
                 }
                 if app.devices.count > 1 {
                     Divider()
-                    Button("Alle Geräte auswählen") {
+                    Button("Select All Devices") {
                         withAnimation(Motion.spring(0.25, 0.7)) { model.multiSelection = Set(app.devices.map(\.id)) }
                     }
                 }
@@ -462,8 +462,8 @@ struct ShelfView: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
-            .help("Mehr")
-            .accessibilityLabel("Mehr")
+            .help("More")
+            .accessibilityLabel("More")
         }
         .padding(.horizontal, 12)
         .padding(.top, 10)
@@ -520,10 +520,11 @@ struct ShelfView: View {
         VStack(spacing: 2) {
             Radar()
                 .frame(height: 92)
-            Text("Dateien hier ablegen")
+            Text("Drop files here")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.secondary)
-            Text(app.devices.isEmpty ? "Suche Geräte im Tailnet…" : "oder direkt auf ein Gerät ziehen")
+            Text(app.devices.isEmpty ? String(localized: "Searching for devices on your tailnet…")
+                                      : String(localized: "or drag them straight onto a device"))
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
         }
@@ -533,7 +534,7 @@ struct ShelfView: View {
         .contentShape(Rectangle())
         .onTapGesture { pickFiles { model.add($0) } }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Ablage. Dateien hier ablegen oder klicken, um Dateien auszuwählen.")
+        .accessibilityLabel("Shelf. Drop files here or click to choose files.")
         .accessibilityAddTraits(.isButton)
     }
 
@@ -546,9 +547,9 @@ struct ShelfView: View {
                 VStack(spacing: 6) {
                     Image(systemName: "tray.and.arrow.down")
                         .font(.system(size: 26, weight: .light))
-                    Text("Dateien hier ablegen")
+                    Text("Drop files here")
                         .font(.system(size: 12, weight: .medium))
-                    Text("oder direkt auf ein Gerät ziehen")
+                    Text("or drag them straight onto a device")
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                 }
@@ -580,7 +581,7 @@ struct ShelfView: View {
             .frame(height: 92)
             .overlay(FileDragSource(urls: model.files))
             .scaleEffect(stackTargeted ? 1.06 : 1)
-            .help("Herausziehen, um die Dateien woanders abzulegen · Doppelklick öffnet")
+            .help("Drag out to drop the files elsewhere · Double-click to open")
 
             Text(summary)
                 .font(.system(size: 11, weight: .medium))
@@ -589,7 +590,7 @@ struct ShelfView: View {
                 .padding(.horizontal, 20)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Ablage: \(summary). Herausziehen, um die Dateien woanders abzulegen.")
+        .accessibilityLabel("Shelf: \(summary). Drag out to drop the files elsewhere.")
     }
 
     /// Hover over the stack: compact list with name, size and × per file. Rows drag single files out,
@@ -609,7 +610,7 @@ struct ShelfView: View {
             .frame(height: 20)
             .padding(.horizontal, 6)
             .overlay(FileDragSource(urls: model.files))
-            .help("Alle Dateien herausziehen")
+            .help("Drag out all files")
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
@@ -631,7 +632,7 @@ struct ShelfView: View {
     private var summary: String {
         let size = ByteFormat.string(model.totalSize)
         if model.files.count == 1 { return "\(model.files[0].lastPathComponent) · \(size)" }
-        return "\(model.files.count) Objekte · \(size)"
+        return String(localized: "\(model.files.count) items · \(size)")
     }
 
     // MARK: devices
@@ -643,7 +644,7 @@ struct ShelfView: View {
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "paperplane.fill").font(.system(size: 9, weight: .semibold))
-                Text(n == 1 ? "An 1 Gerät senden" : "An \(n) Geräte senden")
+                Text(n == 1 ? String(localized: "Send to 1 Device") : String(localized: "Send to \(n) Devices"))
                 Text("↩")
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .frame(width: 15, height: 14)
@@ -652,7 +653,7 @@ struct ShelfView: View {
         }
         .buttonStyle(PanelButtonStyle(prominent: true))
         .shadow(color: Color.accentColor.opacity(0.35), radius: 6, y: 2)
-        .help("Sendet die Ablage an alle ausgewählten Geräte (↩) · ⎋ hebt die Auswahl auf")
+        .help("Sends the shelf to all selected devices (↩) · ⎋ clears the selection")
         .transition(.scale(scale: 0.8).combined(with: .opacity))
     }
 
@@ -662,14 +663,14 @@ struct ShelfView: View {
             VStack(spacing: 6) {
                 if !app.hasRefreshed {
                     ProgressView().controlSize(.small)
-                    Text("Suche Geräte im Tailnet…")
+                    Text("Searching for devices on your tailnet…")
                 } else if app.tailscaleMissing || app.status == nil {
                     Image(systemName: "network.slash").font(.system(size: 20))
-                    Text("Tailscale ist nicht verbunden")
+                    Text("Tailscale isn’t connected")
                 } else {
                     Image(systemName: "dot.radiowaves.left.and.right").font(.system(size: 20))
-                    Text("Keine Geräte mit Tailbolt gefunden")
-                    Text("Tailbolt muss auf dem anderen Gerät laufen")
+                    Text("No devices with Tailbolt found")
+                    Text("Tailbolt needs to be running on the other device")
                         .font(.system(size: 10)).foregroundStyle(.tertiary)
                 }
             }
@@ -762,7 +763,7 @@ struct ShelfView: View {
         .padding(.horizontal, 14)
         .padding(.bottom, 6)
         .frame(maxWidth: .infinity)
-        .accessibilityLabel("Hinweis: \(text)")
+        .accessibilityLabel("Note: \(text)")
     }
 }
 
@@ -821,14 +822,14 @@ struct FileRow: View {
                     .opacity(hover ? 1 : 0.35)
             }
             .buttonStyle(.plain)
-            .help("Aus dem Shelf entfernen")
-            .accessibilityLabel("\(url.lastPathComponent) entfernen")
+            .help("Remove from Shelf")
+            .accessibilityLabel("Remove \(url.lastPathComponent)")
         }
         .padding(.horizontal, 6)
         .frame(height: 21)
         .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(hover ? Color.primary.opacity(0.06) : .clear))
         .onHover { hover = $0 }
-        .help("\(url.lastPathComponent) · \(ByteFormat.string(size)) · herausziehen oder Doppelklick zum Öffnen")
+        .help("\(url.lastPathComponent) · \(ByteFormat.string(size)) · drag out or double-click to open")
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(url.lastPathComponent), \(ByteFormat.string(size))")
     }
@@ -859,8 +860,8 @@ func pickFiles(_ done: @escaping ([URL]) -> Void) {
     p.allowsMultipleSelection = true
     p.canChooseDirectories = true
     p.canChooseFiles = true
-    p.prompt = "Auswählen"
-    p.message = "Was möchtest du senden?"
+    p.prompt = String(localized: "Select")
+    p.message = String(localized: "What would you like to send?")
     NSApp.activate(ignoringOtherApps: true)
     p.begin { r in
         if r == .OK { done(p.urls) }
