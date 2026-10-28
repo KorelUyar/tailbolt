@@ -252,6 +252,7 @@ struct SettingsRowLabel: View {
 struct GeneralSettingsView: View {
     @State private var settings = Settings.shared
     @State private var launchAtLogin = Settings.shared.launchAtLogin
+    @State private var language = AppLanguage.current
 
     var body: some View {
         Form {
@@ -261,6 +262,24 @@ struct GeneralSettingsView: View {
                 }
                 .onChange(of: launchAtLogin) { _, v in settings.launchAtLogin = v }
                 .help("Tailbolt beim Anmelden automatisch starten")
+            }
+
+            Section {
+                Picker(selection: $language) {
+                    ForEach(AppLanguage.allCases) { Text(verbatim: $0.nativeName).tag($0) }
+                } label: {
+                    SettingsRowLabel(title: String(localized: "Language"),
+                                     subtitle: String(localized: "English is the default. Applies after a restart."))
+                }
+                .onChange(of: language) { _, v in AppLanguage.select(v) }
+                .help(String(localized: "Language of the Tailbolt interface"))
+                if language != AppLanguage.launched {
+                    LabeledContent {
+                        Button(String(localized: "Restart Now")) { AppLanguage.relaunch() }
+                    } label: {
+                        SettingsRowLabel(title: String(localized: "Restart Tailbolt to switch the language."))
+                    }
+                }
             }
 
             Section("Rückmeldungen") {

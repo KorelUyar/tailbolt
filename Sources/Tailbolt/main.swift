@@ -90,6 +90,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+AppLanguage.applyAtLaunch()   // before any localized string is resolved
+
 MainActor.assumeIsolated {
     let app = NSApplication.shared
     let delegate = AppDelegate()

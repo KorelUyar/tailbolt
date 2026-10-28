@@ -37,6 +37,9 @@ ICONSET="$(mktemp -d)/AppIcon.iconset"
 swift scripts/make-icon.swift "$ICONSET"
 iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 cp Resources/menubar*.png "$APP/Contents/Resources/"
+# Localizations: English is the source language, German comes from de.lproj
+cp -R Resources/en.lproj Resources/de.lproj "$APP/Contents/Resources/"
+plutil -lint "$APP/Contents/Resources/de.lproj/Localizable.strings" >/dev/null
 
 # Share extension (Finder → Teilen → Tailbolt)
 APPEX="$APP/Contents/PlugIns/TailboltShare.appex"

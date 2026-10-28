@@ -4,6 +4,13 @@
 <dict>
     <key>CFBundleName</key>
     <string>Tailbolt</string>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleLocalizations</key>
+    <array>
+        <string>en</string>
+        <string>de</string>
+    </array>
     <key>CFBundleDisplayName</key>
     <string>Tailbolt</string>
     <key>CFBundleIdentifier</key>
@@ -61,7 +68,7 @@
             <key>NSMenuItem</key>
             <dict>
                 <key>default</key>
-                <string>Mit Tailbolt senden</string>
+                <string>Send with Tailbolt</string>
             </dict>
             <key>NSMessage</key>
             <string>sendFiles</string>
