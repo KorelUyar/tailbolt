@@ -8,6 +8,16 @@ public protocol TailboltServerDelegate: AnyObject {
     func server(_ server: TailboltServer, didReceiveOffer transfer: IncomingTransfer)
     /// A peer said hello (probe or offer) — handy for instant discovery.
     func server(_ server: TailboltServer, didSeeHello info: HelloInfo, from ip: String)
+    /// A peer asks to pair for mutual auto-accept. Call `accept()` or `decline(_:)` on the request (any thread).
+    func server(_ server: TailboltServer, didReceivePairRequest request: PairRequest)
+    /// A paired peer turned auto-accept off on its side.
+    func server(_ server: TailboltServer, didReceiveUnpairFrom ip: String)
+}
+
+extension TailboltServerDelegate {
+    /// Headless receivers (the CLI) don't pair.
+    public func server(_ server: TailboltServer, didReceivePairRequest request: PairRequest) { request.decline("Not supported") }
+    public func server(_ server: TailboltServer, didReceiveUnpairFrom ip: String) {}
 }
 
 public final class TailboltServer {
@@ -53,10 +63,22 @@ public final class TailboltServer {
             reply.caps = Tailbolt.capabilities.filter { ($0 != "lan" || lanFastPathEnabled) && ($0 != "lz4" || compressionEnabled) }
             guard (try? s.send(reply)) != nil else { s.close(); return }
             delegate?.server(self, didSeeHello: HelloInfo(name: first.name ?? s.remoteAddress, os: first.os ?? "",
-                                                          app: first.app ?? "", caps: first.caps ?? []),
+                                                          app: first.app ?? "", caps: first.caps ?? [], model: first.model),
                              from: s.remoteAddress)
-            guard let next = try? s.receive(), next.t == "offer" else { s.close(); return }
-            handleOffer(next, hello: first, control: s)
+            guard let next = try? s.receive() else { s.close(); return }
+            switch next.t {
+            case "offer":
+                handleOffer(next, hello: first, control: s)
+            case "pair":
+                let request = PairRequest(senderName: first.name ?? s.remoteAddress, remoteAddress: s.remoteAddress, control: s)
+                if let delegate { delegate.server(self, didReceivePairRequest: request) } else { request.decline("Not supported") }
+                request.run()
+            case "unpair":
+                delegate?.server(self, didReceiveUnpairFrom: s.remoteAddress)
+                s.close()
+            default:
+                s.close()
+            }
         case "data":
             lock.lock(); let t = first.id.flatMap { transfers[$0] }; lock.unlock()
             guard let t else { Debug.log("rx data \(s.remoteAddress): unknown transfer \(first.id ?? "-")"); s.close(); return }

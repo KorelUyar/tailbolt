@@ -48,6 +48,10 @@ xattr -dr com.apple.quarantine /Applications/Tailbolt.app
 First launch shows a short setup assistant (replayable from Settings → General). macOS asks once for
 *Local Network* access; that enables LAN Turbo, everything else works without it.
 
+**Updates.** From 2.3 on, Tailbolt checks GitHub once a day and offers *Update* in the menu-bar popover
+(Settings → About → Updates to turn it off or check now): it downloads the release, verifies it, swaps the
+app and restarts. Older versions update with the installer line above.
+
 Both ends need Tailbolt; your own devices without it (e.g. an iPhone) still show up and get files via
 Taildrop. Tailscale ACLs must allow TCP 48484 between the devices (the default policy does).
 
@@ -60,7 +64,7 @@ Taildrop. Tailscale ACLs must allow TCP 48484 between the devices (the default p
 | **⌃⌥⌘B** | Shelf with the Finder selection, keyboard-driven: **1–9** send to the n-th device, **←/→ + ↩** pick one, **⇥** writes a note, **⎋** closes, **⌘O** adds files, **⌘⌫** empties it; hold **⌘** for digit hints. |
 | **⌃⌥⌘V** | Shelf with the clipboard: files as they are, an image → `Bild <Datum>.png`, text/link → `.txt`. |
 | **Shake while dragging** | Drag files and wiggle the cursor → the shelf appears under the cursor (Dropover style). Drop onto a device to send right away, or park the files in the shelf. |
-| **Menu-bar icon** | Drop files on the icon → shelf below it. Click → devices, transfers, settings. |
+| **Menu-bar icon** | Drop files on the icon → shelf below it. Click → devices, transfers, settings; click a device → file picker with a note field. |
 | **Finder → right-click → Quick Actions → Send with Tailbolt** | Finder Quick Action (installed from the setup assistant or Settings → Shortcuts). |
 | **Finder → Share → Tailbolt** · **Services → Send with Tailbolt** | Share extension / macOS Service. |
 | `tailbolt send <host> <files…>` | Terminal (one toggle links `/usr/local/bin/tailbolt` to the bundled CLI). |
@@ -71,14 +75,25 @@ the shelf (one ↩), and anything a password manager marks as concealed is refus
 
 ## Receiving
 
-**Notes.** Type a short message into the shelf (“Add a note…”, or press ⇥) and it travels with the files: the
-recipient reads it in a speech bubble on the request card before deciding, and it stays on the transfer in the
-history. `tailbolt send --note "…" <host> <files>` does the same from the terminal.
+**Notes.** Type a short message into the shelf (“Add a note…”, or press ⇥) or into the note field of the
+file picker (click a device in the popover) and it travels with the files: the recipient reads it in a speech
+bubble on the request card before deciding, next to the thumbnail when the files arrive, and on the transfer
+in the history. `tailbolt send --note "…" <host> <files>` does the same from the terminal. Receivers need
+Tailbolt 2.2 or newer to see notes; when one doesn't, the history row says so (the files arrive anyway).
 
 A card appears top-right (*Accept / Decline*, ↩ / ⎋). Files from your own devices are accepted
-automatically; people you trust can be added to “Always accept from”. Everything lands in `~/Downloads`
-(configurable); folders keep structure, modification dates, exec bits and symlinks; the finished
-transfer collapses into a draggable thumbnail like a macOS screenshot.
+automatically. Everything lands in `~/Downloads` (configurable); folders keep structure, modification
+dates, exec bits and symlinks; the finished transfer collapses into a draggable thumbnail like a macOS
+screenshot.
+
+**Auto-accept with each other.** Right-click a colleague's device → *Auto-Accept with Each Other…*. They get
+a card (*Not Now / Allow*); once they allow it, files between the two of you arrive without asking — in both
+directions, like your own devices. Paired devices carry a small green ⚡︎ badge; Settings → Receive lists them
+(“Both ways”), and removing one there switches it off on the other side too. Both need Tailbolt 2.3+.
+
+<p align="center">
+  <img src="docs/screenshots/pair-light.png" width="300" alt="Pairing request card">
+</p>
 
 ## Why it is fast
 
@@ -109,6 +124,10 @@ and the notes in `DEV.md`).
 - Offers with absolute paths, `..`, or entries below a symlink are rejected; symlinks are created last;
   transfers are staged in a hidden `.tailbolt-<id>` folder and moved into place only when complete.
 - The sender is identified by its tailnet IP (WireGuard-authenticated), never by what it claims.
+- Pairing only ever adds a peer to *your* list after you click *Allow*; a peer can switch its pairing off
+  (which removes it from your list) but can never switch it on by itself.
+- Self-update only takes `Tailbolt.zip` from this repository's latest GitHub release, checks bundle id,
+  version and code signature, then swaps the bundle.
 
 ## Build (no Xcode needed)
 

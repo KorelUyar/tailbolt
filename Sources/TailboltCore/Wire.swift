@@ -3,7 +3,7 @@ import Foundation
 public enum Tailbolt {
     public static let defaultPort: UInt16 = 48484
     public static let protocolVersion = 2
-    public static let appVersion = "2.2"
+    public static let appVersion = "2.3"
     static let maxChunkSize: Int64 = 16 << 20
     static let ioBufferSize = 4 << 20
     /// Parallel TCP streams through the tailnet and (when both ends share a LAN) directly over it.
@@ -13,7 +13,7 @@ public enum Tailbolt {
     /// Files at least this big are read/written uncached so multi-GB transfers don't evict everything else.
     static let noCacheThreshold: Int64 = 64 << 20
     /// Capabilities announced in hello; a sender only uses what the receiver listed.
-    static var capabilities: [String] { (LZ4.available ? ["lz4"] : []) + ["lan", "note"] }
+    static var capabilities: [String] { (LZ4.available ? ["lz4"] : []) + ["lan", "note", "pair"] }
 
     /// Longest note a sender may attach (characters); receivers cut anything longer.
     public static let maxNoteLength = 500
@@ -78,7 +78,8 @@ public struct Msg: Codable {
     public var name: String?
     public var os: String?
     public var app: String?
-    public var caps: [String]?      // "lz4", "lan"
+    public var caps: [String]?      // "lz4", "lan", "note", "pair"
+    public var model: String?       // hardware model code ("Mac16,1") so peers can show the right device picture; 2.3+
     // offer / data
     public var id: String?
     public var items: [WireItem]?
@@ -135,10 +136,24 @@ func makeHello(name: String) -> Msg {
     hello.os = Platform.name
     hello.app = Tailbolt.appVersion
     hello.caps = Tailbolt.capabilities
+    hello.model = Platform.model
     return hello
 }
 
-enum Platform {
+public enum Platform {
+    /// "Mac16,1", "iPhone17,3" – nil where the OS doesn't tell.
+    public static let model: String? = {
+        #if canImport(Darwin)
+        var size = 0
+        guard sysctlbyname("hw.model", nil, &size, nil, 0) == 0, size > 1 else { return nil }
+        var buf = [CChar](repeating: 0, count: size)
+        guard sysctlbyname("hw.model", &buf, &size, nil, 0) == 0 else { return nil }
+        return String(cString: buf)
+        #else
+        return nil
+        #endif
+    }()
+
     static var name: String {
         #if os(macOS)
         return "macOS"
@@ -185,15 +200,19 @@ public struct HelloInfo: Hashable, Sendable {
     public let os: String
     public let app: String
     public let caps: [String]
+    /// Hardware model code ("Mac16,1"); nil for Tailbolt before 2.3.
+    public let model: String?
 
-    public init(name: String, os: String, app: String, caps: [String] = []) {
-        self.name = name; self.os = os; self.app = app; self.caps = caps
+    public init(name: String, os: String, app: String, caps: [String] = [], model: String? = nil) {
+        self.name = name; self.os = os; self.app = app; self.caps = caps; self.model = model
     }
 
     public var supportsLAN: Bool { caps.contains("lan") }
     public var supportsLZ4: Bool { caps.contains("lz4") }
     /// Shows notes on its request card (Tailbolt 2.1+).
     public var supportsNotes: Bool { caps.contains("note") }
+    /// Can be paired for mutual auto-accept (Tailbolt 2.3+).
+    public var supportsPairing: Bool { caps.contains("pair") }
 }
 
 public enum Probe {
@@ -207,6 +226,6 @@ public enum Probe {
         var bye = Msg(t: "bye")
         bye.reason = "probe"
         try? s.send(bye)
-        return HelloInfo(name: reply.name ?? host, os: reply.os ?? "", app: reply.app ?? "", caps: reply.caps ?? [])
+        return HelloInfo(name: reply.name ?? host, os: reply.os ?? "", app: reply.app ?? "", caps: reply.caps ?? [], model: reply.model)
     }
 }

@@ -132,7 +132,8 @@ enum Palette {
         [Color(red: 1.0, green: 0.76, blue: 0.3), Color(red: 0.96, green: 0.52, blue: 0.16)],
         [Color(red: 0.4, green: 0.84, blue: 0.92), Color(red: 0.16, green: 0.56, blue: 0.82)],
     ]
-    static let mine = [Color(white: 0.62), Color(white: 0.42)]
+    /// Own devices: a cool graphite plate, so the silver product pictures stand out.
+    static let mine = [Color(red: 0.55, green: 0.59, blue: 0.66), Color(red: 0.30, green: 0.33, blue: 0.39)]
 
     static func gradient(for device: Device) -> [Color] {
         if device.peer.isMine { return mine }
@@ -172,14 +173,7 @@ struct DeviceAvatar: View {
     }
 
     private var symbolCircle: some View {
-        Circle()
-            .fill(LinearGradient(colors: Palette.gradient(for: device), startPoint: .top, endPoint: .bottom))
-            .overlay(
-                Image(systemName: device.symbol)
-                    .font(.system(size: size * 0.4, weight: .regular))
-                    .foregroundStyle(.white)
-                    .shadow(color: .black.opacity(0.15), radius: 1, y: 1)
-            )
+        DevicePlate(art: device.art, colors: Palette.gradient(for: device), size: size)
     }
 
     private func badge(symbol: String, color: Color) -> some View {
@@ -218,13 +212,7 @@ struct SelfAvatar: View {
     }
 
     private var symbolCircle: some View {
-        Circle()
-            .fill(LinearGradient(colors: Palette.mine, startPoint: .top, endPoint: .bottom))
-            .overlay(
-                Image(systemName: DeviceSymbol.for(os: "macOS", name: app.myName))
-                    .font(.system(size: size * 0.42, weight: .regular))
-                    .foregroundStyle(.white)
-            )
+        DevicePlate(art: .thisMac, colors: Palette.mine, size: size)
     }
 }
 
@@ -496,6 +484,17 @@ struct DeviceBubble: View {
                     .transition(.opacity)
                     .help("Favorite \(slot)")
             }
+            if settings.isPaired(device.id), !showsRing {
+                Image(systemName: "bolt.fill")
+                    .font(.system(size: 7.5, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 15, height: 15)
+                    .background(Circle().fill(Color.green))
+                    .overlay(Circle().strokeBorder(.white.opacity(0.9), lineWidth: 1.2))
+                    .offset(x: -size / 2 + 3, y: size / 2 - 3)
+                    .transition(.opacity)
+                    .help("Auto-accept with each other is on")
+            }
             if let t = transfer, showsRing {
                 ProgressRing(fraction: t.fraction,
                              indeterminate: t.state == .waiting || t.taildrop != nil,
@@ -579,7 +578,19 @@ struct DeviceBubble: View {
         }
         Divider()
         Button("Choose Files and Send…") {
-            pickFiles { AppModel.shared.send($0, to: device) }
+            pickFiles(noteFor: device) { AppModel.shared.send($0, to: device, note: $1) }
+        }
+        if !device.peer.isMine && !device.viaTaildrop {
+            Divider()
+            if settings.isPaired(device.id) {
+                Button("Turn Off Auto-Accept with \(device.name)") { AppModel.shared.unpair(deviceID: device.id) }
+            } else if AppModel.shared.pairingInFlight.contains(device.id) {
+                Button("Waiting for \(device.name)…") {}.disabled(true)
+            } else if device.canPair {
+                Button("Auto-Accept with Each Other…") { AppModel.shared.requestPairing(with: device) }
+            } else {
+                Button("Auto-Accept needs Tailbolt 2.3 on \(device.name)") {}.disabled(true)
+            }
         }
     }
 
@@ -686,6 +697,10 @@ struct DeviceBubble: View {
         if let badge = PathBadge.make(device: device, transfer: transfer) { lines.append(badge.explanation) }
         if let lz4 = lz4Label { lines.append(String(localized: "\(lz4): what LZ4 compression is saving right now.")) }
         if let keyHint { lines.append(String(localized: "Send: \(keyHint)")) }
+        if settings.isPaired(device.id) { lines.append(String(localized: "Auto-accept with each other is on")) }
+        if let v = device.tailboltVersion, Updater.isNewer(Tailbolt.appVersion, than: v) {
+            lines.append(String(localized: "Runs Tailbolt \(v) – an update brings notes and auto-accept"))
+        }
         return lines.joined(separator: "\n")
     }
 

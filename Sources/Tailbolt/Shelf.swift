@@ -931,15 +931,95 @@ struct FlyingStack: View {
 
 @MainActor
 func pickFiles(_ done: @escaping ([URL]) -> Void) {
+    let p = filePanel()
+    NSApp.activate(ignoringOtherApps: true)
+    p.begin { r in
+        if r == .OK { done(p.urls) }
+    }
+}
+
+/// The file picker for a send to one device (popover, right-click): a note field sits under the file list, so a
+/// message can go along without the shelf. Devices that can't show notes (Taildrop) get none.
+@MainActor
+func pickFiles(noteFor device: Device, _ done: @escaping ([URL], String?) -> Void) {
+    let p = filePanel()
+    p.message = String(localized: "What would you like to send to \(device.name)?")
+    p.prompt = String(localized: "Send")
+    let accessory = device.viaTaildrop ? nil : NoteAccessory(device: device)
+    if let accessory {
+        p.accessoryView = accessory.view
+        p.isAccessoryViewDisclosed = true
+    }
+    NSApp.activate(ignoringOtherApps: true)
+    p.begin { r in
+        MainActor.assumeIsolated {
+            if r == .OK { done(p.urls, accessory?.note) }
+        }
+    }
+}
+
+private func filePanel() -> NSOpenPanel {
     let p = NSOpenPanel()
     p.allowsMultipleSelection = true
     p.canChooseDirectories = true
     p.canChooseFiles = true
     p.prompt = String(localized: "Select")
     p.message = String(localized: "What would you like to send?")
-    NSApp.activate(ignoringOtherApps: true)
-    p.begin { r in
-        if r == .OK { done(p.urls) }
+    return p
+}
+
+/// "Note for Noah (optional)" under the open panel's file list.
+@MainActor
+private final class NoteAccessory: NSObject, NSTextFieldDelegate {
+    let view: NSView
+    private let field: NSTextField
+
+    var note: String? { Tailbolt.sanitizedNote(field.stringValue) }
+
+    init(device: Device) {
+        field = NSTextField()
+        field.placeholderString = String(localized: "Add a note for \(device.name) (optional)")
+        field.lineBreakMode = .byTruncatingTail
+        field.usesSingleLineMode = true
+        field.bezelStyle = .roundedBezel
+        field.translatesAutoresizingMaskIntoConstraints = false
+        field.setAccessibilityLabel(String(localized: "Note for the recipient"))
+
+        let icon = NSImageView(image: NSImage(systemSymbolName: "text.bubble", accessibilityDescription: nil) ?? NSImage())
+        icon.contentTintColor = .controlAccentColor
+        icon.translatesAutoresizingMaskIntoConstraints = false
+
+        let hint = NSTextField(labelWithString: device.cannotShowNotes
+            ? String(localized: "\(device.name) runs an older Tailbolt and won’t see the note.")
+            : String(localized: "Shown on the request card before they accept."))
+        hint.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        hint.textColor = device.cannotShowNotes ? .systemOrange : .secondaryLabelColor
+        hint.translatesAutoresizingMaskIntoConstraints = false
+
+        let box = NSView(frame: NSRect(x: 0, y: 0, width: 520, height: 62))
+        box.addSubview(icon)
+        box.addSubview(field)
+        box.addSubview(hint)
+        NSLayoutConstraint.activate([
+            icon.leadingAnchor.constraint(equalTo: box.leadingAnchor, constant: 20),
+            icon.centerYAnchor.constraint(equalTo: field.centerYAnchor),
+            icon.widthAnchor.constraint(equalToConstant: 18),
+            field.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 8),
+            field.trailingAnchor.constraint(equalTo: box.trailingAnchor, constant: -20),
+            field.topAnchor.constraint(equalTo: box.topAnchor, constant: 12),
+            field.widthAnchor.constraint(greaterThanOrEqualToConstant: 320),
+            hint.leadingAnchor.constraint(equalTo: field.leadingAnchor),
+            hint.trailingAnchor.constraint(lessThanOrEqualTo: field.trailingAnchor),
+            hint.topAnchor.constraint(equalTo: field.bottomAnchor, constant: 5),
+            hint.bottomAnchor.constraint(equalTo: box.bottomAnchor, constant: -10),
+        ])
+        view = box
+        super.init()
+        field.delegate = self
+    }
+
+    func controlTextDidChange(_ obj: Notification) {
+        if field.stringValue.count > Tailbolt.maxNoteLength { field.stringValue = String(field.stringValue.prefix(Tailbolt.maxNoteLength)) }
     }
 }
 

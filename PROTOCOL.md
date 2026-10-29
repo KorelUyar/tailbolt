@@ -16,11 +16,14 @@ payload that directly follows a `chunk` message (exactly `n` raw bytes).
 ## Control connection
 
 ```
-C → S  {"t":"hello","v":2,"name":"Saras Mac mini","os":"macOS","app":"2.2","caps":["lz4","lan","note"]}
-S → C  {"t":"hello","v":2,"name":"MacBook Pro","os":"macOS","app":"2.2","caps":["lz4","lan","note"]}
+C → S  {"t":"hello","v":2,"name":"Saras Mac mini","os":"macOS","app":"2.3","caps":["lz4","lan","note","pair"],
+        "model":"Mac16,10"}
+S → C  {"t":"hello","v":2,"name":"MacBook Pro","os":"macOS","app":"2.3","caps":["lz4","lan","note","pair"],
+        "model":"Mac16,1"}
 ```
 
-A probe stops here (`{"t":"bye"}` + close). To send, the client continues:
+`model` (2.3+, optional) is the hardware model code (`sysctl hw.model`); peers use it to show the right
+product picture. A probe stops here (`{"t":"bye"}` + close). To send, the client continues:
 
 ```
 C → S  {"t":"offer","id":"<uuid>","total":123,"chunk":16777216,
@@ -54,6 +57,20 @@ S → C  {"t":"done"}                       or   {"t":"error","reason":"…"}
 ```
 
 Closing the control connection from either side cancels the transfer.
+
+### Pairing (mutual auto-accept, 2.3+)
+
+Instead of an offer, a client whose peer listed `"pair"` may ask to auto-accept each other's transfers:
+
+```
+C → S  {"t":"pair"}
+S → C  {"t":"pair-ok"}                    or   {"t":"decline","reason":"…"}
+```
+
+The receiver shows a card and answers once its user decided (it gives up after 2 min, the client waits
+130 s). On `pair-ok` both sides add the other's tailnet node to their always-accept list; each side only
+ever changes its own list. Either side can later send `{"t":"unpair"}` (after hello, no answer): the peer
+then removes the sender from its list. Nothing else can add a peer.
 
 ## Data connections (tailnet)
 

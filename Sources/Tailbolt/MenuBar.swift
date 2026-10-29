@@ -313,6 +313,7 @@ struct MenuView: View {
     var close: () -> Void
     @State private var app = AppModel.shared
     @State private var settings = Settings.shared
+    @State private var updater = Updater.shared
 
     private let columns = Array(repeating: GridItem(.fixed(84), spacing: 2), count: 4)
 
@@ -322,6 +323,12 @@ struct MenuView: View {
                 .padding(.horizontal, 14)
                 .padding(.top, 12)
                 .padding(.bottom, 8)
+
+            if let release = updater.latest {
+                UpdateBanner(release: release)
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 4)
+            }
 
             TimelineView(.periodic(from: .now, by: 1)) { _ in
                 VStack(alignment: .leading, spacing: 0) {
@@ -460,7 +467,7 @@ struct MenuView: View {
                      onDropFiles: { urls in app.send(urls, to: device) },
                      onTap: {
                          close()
-                         pickFiles { app.send($0, to: device) }
+                         pickFiles(noteFor: device) { app.send($0, to: device, note: $1) }
                      })
             .transition(Motion.reduced ? .opacity : .scale(scale: 0.6).combined(with: .opacity))
     }
@@ -578,6 +585,54 @@ struct MenuView: View {
     }
 }
 
+/// "Tailbolt 2.4 is available": one click downloads, swaps the app and relaunches.
+struct UpdateBanner: View {
+    let release: Updater.Release
+    @State private var updater = Updater.shared
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "arrow.down.circle.fill")
+                .font(.system(size: 20))
+                .symbolRenderingMode(.palette)
+                .foregroundStyle(.white, Color.accentColor)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Tailbolt \(release.version) is available")
+                    .font(.system(size: 12, weight: .medium))
+                Text(detail)
+                    .font(.system(size: 10))
+                    .foregroundStyle(failed ? .red : .secondary)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 4)
+            if busy {
+                ProgressView().controlSize(.small)
+            } else {
+                Button("Update") { updater.installLatest() }
+                    .buttonStyle(PanelButtonStyle(prominent: true))
+                    .help("Download Tailbolt \(release.version), replace this version and restart")
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.accentColor.opacity(0.1)))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.accentColor.opacity(0.22), lineWidth: 0.5))
+        .accessibilityElement(children: .contain)
+    }
+
+    private var busy: Bool { updater.install == .downloading || updater.install == .installing }
+    private var failed: Bool { if case .failed = updater.install { return true }; return false }
+
+    private var detail: String {
+        switch updater.install {
+        case .idle: return String(localized: "Installs in seconds and restarts by itself")
+        case .downloading: return String(localized: "Downloading…")
+        case .installing: return String(localized: "Installing…")
+        case .failed(let reason): return reason
+        }
+    }
+}
+
 /// "Zuletzt": what went out last, where to and when – one click sends it again, the thumbnail drags back out.
 struct LastPayloadRow: View {
     let payload: LastPayload
@@ -650,11 +705,7 @@ struct TransferRow: View {
     var body: some View {
         HStack(spacing: 10) {
             ZStack(alignment: .bottomTrailing) {
-                Image(systemName: item.peerSymbol)
-                    .font(.system(size: 15))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 30, height: 30)
-                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.quaternary))
+                DeviceThumb(art: item.peerArt, size: 30)
                 Image(systemName: item.direction == .outgoing ? "arrow.up.circle.fill" : "arrow.down.circle.fill")
                     .font(.system(size: 12))
                     .symbolRenderingMode(.palette)
@@ -680,11 +731,18 @@ struct TransferRow: View {
                         Text(verbatim: note)
                             .lineLimit(1)
                             .truncationMode(.tail)
+                            .strikethrough(item.noteNotShown, color: .secondary)
                     } icon: {
-                        Image(systemName: "text.bubble")
+                        Image(systemName: item.noteNotShown ? "exclamationmark.bubble" : "text.bubble")
                     }
-                    .labelStyle(NoteLabelStyle())
-                    .help(note)
+                    .labelStyle(NoteLabelStyle(tint: item.noteNotShown ? .orange : .accentColor))
+                    .help(item.noteNotShown ? String(localized: "Not shown: \(item.peerName) runs an older Tailbolt without notes – the files arrived anyway.") : note)
+                    if item.noteNotShown {
+                        Text("Note not shown – they need Tailbolt 2.2 or newer")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.orange)
+                            .lineLimit(1)
+                    }
                 }
                 if item.state == .transferring || item.state == .finishing {
                     Bar(value: item.taildrop != nil ? nil : item.fraction)
@@ -797,11 +855,13 @@ struct TransferRow: View {
 
 /// Small icon + one line of note text in transfer rows.
 struct NoteLabelStyle: LabelStyle {
+    var tint: Color = .accentColor
+
     func makeBody(configuration: Configuration) -> some View {
         HStack(spacing: 4) {
             configuration.icon
                 .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(tint)
             configuration.title
                 .font(.system(size: 10.5))
                 .foregroundStyle(.primary.opacity(0.85))

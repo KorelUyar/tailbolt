@@ -451,7 +451,7 @@ struct ReceiveSettingsView: View {
             } header: {
                 Text("Always accept from")
             } footer: {
-                SettingsFooter(String(localized: "⌥-click “Accept” on a request to add the device to this list."))
+                SettingsFooter(String(localized: "Right-click someone’s device and choose “Auto-Accept with Each Other…” – once they allow it, files between you arrive without asking, both ways. ⌥-click “Accept” on a request adds just their device here."))
             }
 
             Section("Permission") {
@@ -478,12 +478,12 @@ struct ReceiveSettingsView: View {
         let device = app.devices.first { $0.id == id }
         let name = device?.name ?? settings.knownDeviceNames[id] ?? String(localized: "Device")
         return HStack(spacing: 10) {
-            Image(systemName: device?.symbol ?? "desktopcomputer")
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
-                .frame(width: 24, height: 24)
-                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(.quaternary))
+            DeviceThumb(art: device?.art ?? DeviceArt.make(os: "macOS", name: name, model: nil), size: 24)
             Text(name)
+            if settings.isPaired(id) {
+                PathCapsule(label: String(localized: "Both ways"), tint: .green)
+                    .help("Paired: \(name) also accepts your files without asking")
+            }
             if device == nil {
                 Text("offline")
                     .font(.system(size: 11))
@@ -491,7 +491,7 @@ struct ReceiveSettingsView: View {
             }
             Spacer()
             Button {
-                settings.setAlwaysAccept(id, name: nil, on: false)
+                app.unpair(deviceID: id)
             } label: {
                 Image(systemName: "minus.circle.fill")
                     .foregroundStyle(.secondary)

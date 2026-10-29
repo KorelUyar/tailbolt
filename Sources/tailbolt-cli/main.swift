@@ -9,7 +9,9 @@ func usage() -> Never {
     tailbolt-cli send [--note TEXT] <host[:port]> <paths...>
                                                 send files/folders, optionally with a note for the recipient
     tailbolt-cli bench <host[:port]> [MB]       throughput test (receiver discards the data)
-    tailbolt-cli serve [--port N] [--dir PATH]  receive (auto-accepts everything)
+    tailbolt-cli serve [--port N] [--dir PATH] [--pairs]
+                                                receive (auto-accepts everything; --pairs also confirms pairing requests)
+    tailbolt-cli pair <host[:port]>             ask a device to auto-accept each other's files (they confirm there)
     """)
     exit(2)
 }
@@ -41,7 +43,15 @@ final class Printer {
 
 final class ServeDelegate: TailboltServerDelegate {
     let dir: URL
-    init(dir: URL) { self.dir = dir }
+    let acceptPairs: Bool
+    init(dir: URL, acceptPairs: Bool) { self.dir = dir; self.acceptPairs = acceptPairs }
+    func server(_ server: TailboltServer, didReceivePairRequest request: PairRequest) {
+        print("Pairing request from \(request.senderName) [\(request.remoteAddress)] → \(acceptPairs ? "accepted" : "declined")")
+        if acceptPairs { request.accept() } else { request.decline("Not supported") }
+    }
+    func server(_ server: TailboltServer, didReceiveUnpairFrom ip: String) {
+        print("Unpaired by \(ip)")
+    }
     func server(_ server: TailboltServer, didReceiveOffer transfer: IncomingTransfer) {
         print("Offer from \(transfer.senderName) [\(transfer.remoteAddress)]: \(transfer.topLevelNames.joined(separator: ", ")) (\(ByteFormat.string(transfer.totalBytes)))")
         if let note = transfer.note { print("Note: \(note)") }
@@ -79,7 +89,7 @@ case "peers":
         group.enter()
         DispatchQueue.global().async {
             let hello = Probe.hello(host: p.address, myName: myName)
-            let row = "\(hello != nil ? "●" : "○") \(p.displayName.padding(toLength: 30, withPad: " ", startingAt: 0)) \(p.address.padding(toLength: 16, withPad: " ", startingAt: 0)) \(p.os.padding(toLength: 8, withPad: " ", startingAt: 0)) \(p.path)\(p.directHost.map { " \($0)" } ?? "") \(p.isMine ? "(mine)" : p.user?.loginName ?? "")"
+            let row = "\(hello != nil ? "●" : "○") \(p.displayName.padding(toLength: 30, withPad: " ", startingAt: 0)) \(p.address.padding(toLength: 16, withPad: " ", startingAt: 0)) \(p.os.padding(toLength: 8, withPad: " ", startingAt: 0)) \(p.path)\(p.directHost.map { " \($0)" } ?? "") \(p.isMine ? "(mine)" : p.user?.loginName ?? "")\(hello.map { "  Tailbolt \($0.app) [\($0.caps.joined(separator: ","))]" } ?? "")"
             lock.lock(); rows.append(row); lock.unlock()
             group.leave()
         }
@@ -139,17 +149,28 @@ case "serve":
     var port = Tailbolt.defaultPort
     var dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads")
     var i = 0
+    var acceptPairs = false
     while i < args.count {
-        if args[i] == "--port", i + 1 < args.count { port = UInt16(args[i + 1]) ?? port; i += 2 }
+        if args[i] == "--pairs" { acceptPairs = true; i += 1 }
+        else if args[i] == "--port", i + 1 < args.count { port = UInt16(args[i + 1]) ?? port; i += 2 }
         else if args[i] == "--dir", i + 1 < args.count { dir = URL(fileURLWithPath: args[i + 1]); i += 2 }
         else { usage() }
     }
-    let delegate = ServeDelegate(dir: dir)
+    let delegate = ServeDelegate(dir: dir, acceptPairs: acceptPairs)
     let server = TailboltServer(port: port) { myName + " (cli)" }
     server.delegate = delegate
     try server.start()
     print("Listening on :\(port), saving to \(dir.path)")
     dispatchMain()
+
+case "pair":
+    guard args.count >= 1 else { usage() }
+    let (host, port) = hostPort(args[0])
+    print("Asking \(host):\(port) to pair – confirm on that device…")
+    let outcome = Pairing.request(host: host, port: port, myName: myName)
+    print("→ \(outcome)")
+    if args.count > 1, args[1] == "--revoke" { Pairing.revoke(host: host, port: port, myName: myName); print("→ revoked") }
+    exit(outcome == .accepted ? 0 : 1)
 
 default:
     usage()

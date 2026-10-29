@@ -435,3 +435,60 @@
 "Sender’s note: %@" = "Notiz: %@";
 "Cut for Friday – music still missing" = "Schnitt für Freitag – Musik fehlt noch";
 "Here’s the export for Monday’s pitch. The logo is the new one, please check it 🙏" = "Hier der Export für den Pitch am Montag. Das Logo ist das neue, schau es dir bitte an 🙏";
+
+/* 2.3 – pairing (mutual auto-accept) */
+"Tailbolt on the other device is too old – it needs version 2.3 or newer" = "Tailbolt auf dem anderen Gerät ist zu alt – es braucht Version 2.3 oder neuer";
+"Not supported" = "Nicht unterstützt";
+"Unknown device" = "Unbekanntes Gerät";
+"Already asked" = "Bereits angefragt";
+"%@ needs Tailbolt 2.3 or newer for this" = "%@ braucht dafür Tailbolt 2.3 oder neuer";
+"Waiting for %@ to allow it…" = "Warte, bis %@ es erlaubt…";
+"Auto-accept with %@ is on – both ways" = "Automatisch annehmen mit %@ ist an – in beide Richtungen";
+"%@ didn’t allow auto-accept" = "%@ hat automatisches Annehmen nicht erlaubt";
+"%@ turned off auto-accept" = "%@ hat automatisches Annehmen ausgeschaltet";
+"%@ wants to auto-accept files with you. Press Return to allow, Escape to decline." = "%@ möchte Dateien mit dir automatisch annehmen. Eingabetaste erlaubt, Escape lehnt ab.";
+"Files between you two will arrive without asking – in both directions. You can turn it off any time in Settings → Receive." = "Dateien zwischen euch beiden kommen ohne Nachfrage an – in beide Richtungen. Du kannst das jederzeit unter Einstellungen → Empfangen ausschalten.";
+"Not Now" = "Nicht jetzt";
+"Allow" = "Erlauben";
+"Allow auto-accept with %@ (⏎)" = "Automatisches Annehmen mit %@ erlauben (⏎)";
+"wants to auto-accept files with you" = "möchte Dateien mit dir automatisch annehmen";
+"Auto-accept is on – both ways" = "Automatisch annehmen ist an – in beide Richtungen";
+"The request expired" = "Die Anfrage ist abgelaufen";
+"Auto-accept with each other is on" = "Gegenseitiges automatisches Annehmen ist an";
+"Turn Off Auto-Accept with %@" = "Automatisches Annehmen mit %@ ausschalten";
+"Waiting for %@…" = "Warte auf %@…";
+"Auto-Accept with Each Other…" = "Gegenseitig automatisch annehmen…";
+"Auto-Accept needs Tailbolt 2.3 on %@" = "Automatisch annehmen braucht Tailbolt 2.3 auf %@";
+"Right-click someone’s device and choose “Auto-Accept with Each Other…” – once they allow it, files between you arrive without asking, both ways. ⌥-click “Accept” on a request adds just their device here." = "Klicke mit der rechten Maustaste auf ein Gerät und wähle «Gegenseitig automatisch annehmen…» – sobald die andere Person zustimmt, kommen Dateien zwischen euch ohne Nachfrage an, in beide Richtungen. ⌥-Klick auf «Annehmen» bei einer Anfrage fügt nur ihr Gerät hier hinzu.";
+"Both ways" = "Beidseitig";
+"Paired: %@ also accepts your files without asking" = "Gekoppelt: %@ nimmt deine Dateien auch ohne Nachfrage an";
+
+/* 2.3 – device pictures, old peers, notes in the file picker */
+"Runs Tailbolt %@ – an update brings notes and auto-accept" = "Hat Tailbolt %@ – ein Update bringt Notizen und automatisches Annehmen";
+"Not shown: %@ runs an older Tailbolt without notes – the files arrived anyway." = "Nicht angezeigt: %@ hat ein älteres Tailbolt ohne Notizen – die Dateien sind trotzdem angekommen.";
+"Note not shown – they need Tailbolt 2.2 or newer" = "Notiz nicht angezeigt – dort braucht es Tailbolt 2.2 oder neuer";
+"What would you like to send to %@?" = "Was möchtest du an %@ senden?";
+"Add a note for %@ (optional)" = "Notiz für %@ (optional)";
+"%@ runs an older Tailbolt and won’t see the note." = "%@ hat ein älteres Tailbolt und sieht die Notiz nicht.";
+"Shown on the request card before they accept." = "Erscheint auf der Anfrage, bevor angenommen wird.";
+"Final version, please don’t share yet" = "Finale Version, bitte noch nicht weitergeben";
+
+/* 2.3 – updates */
+"Tailbolt %@ is available" = "Tailbolt %@ ist verfügbar";
+"Update" = "Aktualisieren";
+"Download Tailbolt %@, replace this version and restart" = "Tailbolt %@ laden, diese Version ersetzen und neu starten";
+"Installs in seconds and restarts by itself" = "In Sekunden installiert, startet von selbst neu";
+"Downloading…" = "Wird geladen…";
+"Installing…" = "Wird installiert…";
+"GitHub didn’t answer" = "GitHub hat nicht geantwortet";
+"Download failed" = "Download fehlgeschlagen";
+"The download isn’t a valid Tailbolt" = "Der Download ist kein gültiges Tailbolt";
+"No permission to replace %@ – install the update by hand" = "Keine Berechtigung, %@ zu ersetzen – installiere das Update von Hand";
+"Update failed (%@ %@)" = "Update fehlgeschlagen (%@ %@)";
+"Check for updates automatically" = "Automatisch nach Updates suchen";
+"Asks GitHub once a day whether a newer Tailbolt is out" = "Fragt einmal am Tag bei GitHub, ob es ein neueres Tailbolt gibt";
+"Update to %@" = "Auf %@ aktualisieren";
+"Check Now" = "Jetzt prüfen";
+"Updates" = "Updates";
+"Checking…" = "Wird geprüft…";
+"Tailbolt is up to date" = "Tailbolt ist aktuell";

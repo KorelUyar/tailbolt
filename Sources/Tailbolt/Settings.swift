@@ -111,6 +111,15 @@ final class Settings {
     var alwaysAcceptPeerIDs: [String] {
         didSet { d.set(alwaysAcceptPeerIDs, forKey: "alwaysAcceptPeerIDs") }
     }
+    /// The subset of `alwaysAcceptPeerIDs` that came from pairing: both sides agreed, and turning it off here
+    /// tells the other side too.
+    var pairedPeerIDs: [String] {
+        didSet { d.set(pairedPeerIDs, forKey: "pairedPeerIDs") }
+    }
+    /// Look for a new Tailbolt release on GitHub once a day.
+    var checkForUpdates: Bool {
+        didSet { d.set(checkForUpdates, forKey: "checkForUpdates") }
+    }
 
     var launchAtLogin: Bool {
         get { SMAppService.mainApp.status == .enabled }
@@ -137,6 +146,7 @@ final class Settings {
             "lanTurboEnabled": true,
             "lz4Enabled": true,
             "autoAcceptFavorites": true,
+            "checkForUpdates": true,
         ])
         let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads")
@@ -160,6 +170,8 @@ final class Settings {
         lz4Enabled = d.bool(forKey: "lz4Enabled")
         autoAcceptFavorites = d.bool(forKey: "autoAcceptFavorites")
         alwaysAcceptPeerIDs = d.stringArray(forKey: "alwaysAcceptPeerIDs") ?? []
+        pairedPeerIDs = d.stringArray(forKey: "pairedPeerIDs") ?? []
+        checkForUpdates = d.bool(forKey: "checkForUpdates")
     }
 
     // MARK: always accept
@@ -176,6 +188,17 @@ final class Settings {
             if let name { knownDeviceNames[deviceID] = name }
         }
         alwaysAcceptPeerIDs = ids
+        if !on { pairedPeerIDs.removeAll { $0 == deviceID } }
+    }
+
+    func isPaired(_ deviceID: String) -> Bool {
+        pairedPeerIDs.contains(deviceID)
+    }
+
+    /// Both sides agreed: offers from this peer skip the card, and it is marked as paired.
+    func setPaired(_ deviceID: String, name: String?) {
+        setAlwaysAccept(deviceID, name: name, on: true)
+        if !pairedPeerIDs.contains(deviceID) { pairedPeerIDs.append(deviceID) }
     }
 
     func noteUsed(_ deviceID: String, name: String? = nil) {

@@ -21,25 +21,42 @@ enum Snapshot {
         shelf.files = files
         shelf.note = String(localized: "Cut for Friday – music still missing")
         if let d = devices.first {
-            let t = TransferItem(direction: .outgoing, deviceID: d.id, peerName: d.name, peerSymbol: d.symbol, names: ["Video.mov"])
+            let t = TransferItem(direction: .outgoing, deviceID: d.id, peerName: d.name, peerArt: d.art, names: ["Video.mov"])
             t.totalBytes = 4_200_000_000; t.bytes = 1_700_000_000; t.state = .transferring; t.speed = 112_000_000
             shelf.sent[d.id] = t
             app.transfers.append(t)
             if !files.isEmpty { app.debugSetLastPayload(files, to: d) }
         }
-        let waiting = TransferItem(direction: .incoming, deviceID: nil, peerName: "Noah’s MacBook Pro", peerSymbol: "laptopcomputer",
+        let waiting = TransferItem(direction: .incoming, deviceID: nil, peerName: "Noah’s MacBook Pro", peerArt: .make(os: "macOS", name: "Noah’s MacBook Pro", model: "Mac16,1"),
                                    names: ["Project Export", "notes.pdf", "logo.png"])
         waiting.totalBytes = 2_400_000_000; waiting.state = .waiting; waiting.awaitingDecision = true
         waiting.note = String(localized: "Here’s the export for Monday’s pitch. The logo is the new one, please check it 🙏")
-        let running = TransferItem(direction: .incoming, deviceID: nil, peerName: "Sara’s MacBook Pro", peerSymbol: "laptopcomputer",
+        let running = TransferItem(direction: .incoming, deviceID: nil, peerName: "Sara’s MacBook Pro", peerArt: .make(os: "macOS", name: "Sara’s MacBook Pro", model: nil),
                                    names: ["Vacation 2026"])
         running.totalBytes = 18_000_000_000; running.bytes = 6_300_000_000; running.state = .transferring; running.speed = 240_000_000
         running.lanStreams = 4; running.everUsedLAN = true
-        let done = TransferItem(direction: .incoming, deviceID: nil, peerName: "home-server", peerSymbol: "server.rack", names: ["backup.tar.zst"])
+        let done = TransferItem(direction: .incoming, deviceID: nil, peerName: "home-server", peerArt: .make(os: "linux", name: "home-server", model: nil), names: ["backup.tar.zst"])
         done.totalBytes = 900_000_000; done.bytes = done.totalBytes; done.state = .finished
         done.startedTransferringAt = Date().addingTimeInterval(-1.9); done.finishedAt = Date()
         done.savedURLs = [URL(fileURLWithPath: "/tmp/x")]
         app.transfers.append(contentsOf: [waiting, running, done])
+        // History: a note that went to a peer on an old Tailbolt (files arrived, note not shown).
+        if devices.count > 1 {
+            let d = devices[1]
+            let old = TransferItem(direction: .outgoing, deviceID: d.id, peerName: d.name, peerArt: d.art, names: ["Slides.key"])
+            old.totalBytes = 48_000_000; old.bytes = old.totalBytes; old.state = .finished
+            old.note = String(localized: "Final version, please don’t share yet")
+            old.noteNotShown = true
+            old.startedTransferringAt = Date().addingTimeInterval(-0.8); old.finishedAt = Date()
+            app.transfers.append(old)
+        }
+        // A pairing request (mutual auto-accept) as its card.
+        let pairPrompt = devices.count > 1
+            ? PairPrompt(deviceID: devices[1].id, peerName: devices[1].name, peerArt: devices[1].art, request: nil)
+            : PairPrompt(deviceID: "demo", peerName: "Lena – Mac Studio", peerArt: .make(os: "macOS", name: "Mac Studio", model: "Mac16,9"), request: nil)
+        let pairDone = PairPrompt(deviceID: pairPrompt.deviceID, peerName: pairPrompt.peerName, peerArt: pairPrompt.peerArt, request: nil)
+        pairDone.outcome = .paired; pairDone.finishedAt = Date()
+        Updater.shared.debugSetLatest("2.4")
 
         // Shelf under keyboard control: ⌘ held (keycaps), second device selected, first flashing.
         let keyShelf = ShelfModel()
@@ -55,14 +72,14 @@ enum Snapshot {
         var declined: TransferItem?
         if devices.count > 0 {
             let d = devices[0]
-            let t = TransferItem(direction: .outgoing, deviceID: d.id, peerName: d.name, peerSymbol: d.symbol, names: ["Video.mov"])
+            let t = TransferItem(direction: .outgoing, deviceID: d.id, peerName: d.name, peerArt: d.art, names: ["Video.mov"])
             t.totalBytes = 2_400_000_000; t.bytes = t.totalBytes; t.state = .finished
             beats.sent[d.id] = t
             finished = t
         }
         if devices.count > 1 {
             let d = devices[1]
-            let t = TransferItem(direction: .outgoing, deviceID: d.id, peerName: d.name, peerSymbol: d.symbol, names: ["Video.mov"])
+            let t = TransferItem(direction: .outgoing, deviceID: d.id, peerName: d.name, peerArt: d.art, names: ["Video.mov"])
             t.state = .declined(nil)
             beats.sent[d.id] = t
             declined = t
@@ -73,7 +90,7 @@ enum Snapshot {
         let turbo = ShelfModel()
         turbo.files = files
         if let d = devices.first {
-            let t = TransferItem(direction: .outgoing, deviceID: d.id, peerName: d.name, peerSymbol: d.symbol, names: ["Project"])
+            let t = TransferItem(direction: .outgoing, deviceID: d.id, peerName: d.name, peerArt: d.art, names: ["Project"])
             t.totalBytes = 4_200_000_000; t.bytes = 2_000_000_000; t.state = .transferring; t.speed = 312_000_000
             t.lanStreams = 4; t.bytesSaved = 1_240_000_000
             turbo.sent[d.id] = t
@@ -85,23 +102,29 @@ enum Snapshot {
         let relay = ShelfModel()
         relay.files = files
         if let d = devices.first {
-            let t = TransferItem(direction: .outgoing, deviceID: d.id, peerName: d.name, peerSymbol: d.symbol, names: ["Project"])
+            let t = TransferItem(direction: .outgoing, deviceID: d.id, peerName: d.name, peerArt: d.art, names: ["Project"])
             t.totalBytes = 4_200_000_000; t.bytes = 500_000_000; t.state = .transferring; t.speed = 6_000_000
             t.hint = String(localized: "Running through a relay server (UDP blocked?) – much slower than direct.")
             relay.sent[d.id] = t
         }
 
         // Received thumbnails (bottom-right, screenshot-style) for the files given on the command line.
-        if !files.isEmpty { ReceivedThumbController.shared.debugAdd(urls: files, from: "home-server") }
+        if !files.isEmpty {
+            ReceivedThumbController.shared.debugAdd(urls: files, from: "Noah’s MacBook Pro",
+                                                    note: String(localized: "Here’s the export for Monday’s pitch. The logo is the new one, please check it 🙏"))
+        }
 
         // Settings state for the demo – everything below is restored before exit (snapshots must not change settings).
         let settings = Settings.shared
         let savedFavorites = settings.favoriteDeviceIDs
         let savedAlwaysAccept = settings.alwaysAcceptPeerIDs
         let savedNames = settings.knownDeviceNames
+        let savedPaired = settings.pairedPeerIDs
         if let d = devices.first { settings.setFavorite(id: d.id, name: d.name, slot: 1) }
         let demoPeers = Array(devices.prefix(2))
         settings.alwaysAcceptPeerIDs = demoPeers.map(\.id) + ["snapshot-offline-peer"]
+        settings.pairedPeerIDs = devices.filter { !$0.peer.isMine }.suffix(1).map(\.id)
+        settings.alwaysAcceptPeerIDs += settings.pairedPeerIDs.filter { !settings.alwaysAcceptPeerIDs.contains($0) }
         settings.knownDeviceNames["snapshot-offline-peer"] = "Noah’s MacBook Pro"
         SettingsPreview.relocationFolder = "Downloads"
         SettingsPreview.bench = BenchModel.demo(BenchModel.Result(bytes: OutgoingTransfer.benchSize, seconds: 0.31, usedLAN: true))
@@ -138,6 +161,8 @@ enum Snapshot {
             render(MenuView(close: {}).background(VisualEffect()), to: dir.appendingPathComponent("menu-\(suffix).png"), dark: dark)
             render(VStack(spacing: 8) { IncomingCard(item: waiting); IncomingCard(item: running); IncomingCard(item: done) }.padding(10),
                    to: dir.appendingPathComponent("incoming-\(suffix).png"), dark: dark)
+            render(VStack(spacing: 8) { PairCard(prompt: pairPrompt); PairCard(prompt: pairDone) }.padding(10),
+                   to: dir.appendingPathComponent("pair-\(suffix).png"), dark: dark)
             if !files.isEmpty {
                 render(ReceivedThumbStack(), to: dir.appendingPathComponent("received-\(suffix).png"), dark: dark)
             }
@@ -157,6 +182,7 @@ enum Snapshot {
         settings.favoriteDeviceIDs = savedFavorites
         settings.alwaysAcceptPeerIDs = savedAlwaysAccept
         settings.knownDeviceNames = savedNames
+        settings.pairedPeerIDs = savedPaired
         exit(0)
     }
 

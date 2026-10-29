@@ -47,11 +47,25 @@ final class IncomingPanelController {
         }
     }
 
+    /// Pairing requests: waiting ones, and answered ones for a short moment.
+    var visiblePairs: [PairPrompt] {
+        let now = Date()
+        return AppModel.shared.pairPrompts.filter { p in
+            guard let end = p.finishedAt else { return true }
+            return now.timeIntervalSince(end) < 3.5
+        }
+    }
+
     func update() {
         handOffFinished()
         announceOffers()
+        let app = AppModel.shared
+        if app.pairPrompts.contains(where: { $0.finishedAt.map { Date().timeIntervalSince($0) > 10 } ?? false }) {
+            app.pairPrompts.removeAll { $0.finishedAt.map { Date().timeIntervalSince($0) > 10 } ?? false }
+        }
         let items = visibleItems
-        if items.isEmpty {
+        let pairs = visiblePairs
+        if items.isEmpty && pairs.isEmpty {
             keyboard(wanted: false)
             if let panel, panel.isVisible {
                 NSAnimationContext.runAnimationGroup({ ctx in
@@ -59,7 +73,7 @@ final class IncomingPanelController {
                     panel.animator().alphaValue = 0
                 }, completionHandler: {
                     MainActor.assumeIsolated {
-                        if self.visibleItems.isEmpty { panel.orderOut(nil) }
+                        if self.visibleItems.isEmpty && self.visiblePairs.isEmpty { panel.orderOut(nil) }
                     }
                 })
             }
@@ -78,7 +92,7 @@ final class IncomingPanelController {
                 panel.animator().alphaValue = 1
             }
         }
-        keyboard(wanted: items.contains(where: \.awaitingDecision))
+        keyboard(wanted: items.contains(where: \.awaitingDecision) || pairs.contains(where: \.awaitingDecision))
         if timer == nil {
             timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { _ in
                 MainActor.assumeIsolated { self.update() }
@@ -120,6 +134,12 @@ final class IncomingPanelController {
             NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
                                  userInfo: [.announcement: text, .priority: NSAccessibilityPriorityLevel.high.rawValue])
         }
+        for p in visiblePairs where p.awaitingDecision && !announced.contains(p.id) {
+            announced.insert(p.id)
+            let text = String(localized: "\(p.peerName) wants to auto-accept files with you. Press Return to allow, Escape to decline.")
+            NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
+                                 userInfo: [.announcement: text, .priority: NSAccessibilityPriorityLevel.high.rawValue])
+        }
     }
 
     // MARK: keyboard
@@ -134,9 +154,10 @@ final class IncomingPanelController {
             if panel.wantsKeyboard { releaseKeyboard() }
             return
         }
-        let fresh = visibleItems.filter { $0.awaitingDecision && !grabbed.contains($0.id) }
+        let fresh = visibleItems.filter { $0.awaitingDecision && !grabbed.contains($0.id) }.map(\.id)
+            + visiblePairs.filter { $0.awaitingDecision && !grabbed.contains($0.id) }.map(\.id)
         guard !fresh.isEmpty, !otherWindowIsKey else { return }
-        grabbed.formUnion(fresh.map(\.id))
+        grabbed.formUnion(fresh)
         if !panel.isKeyWindow {
             panel.wantsKeyboard = true
             panel.makeKey()
@@ -159,7 +180,7 @@ final class IncomingPanelController {
             let alpha = panel.alphaValue
             panel.orderOut(nil)
             panel.alphaValue = alpha
-            if !visibleItems.isEmpty { panel.orderFrontRegardless() }
+            if !visibleItems.isEmpty || !visiblePairs.isEmpty { panel.orderFrontRegardless() }
         }
     }
 
@@ -197,6 +218,18 @@ final class IncomingPanelController {
     private func handleKey(_ event: NSEvent) -> Bool {
         guard let panel, panel.isVisible, panel.isKeyWindow else { return false }
         guard !event.isARepeat else { return true }
+        // A pairing request sits on top of the stack and answers first.
+        if let prompt = visiblePairs.first(where: \.awaitingDecision) {
+            switch Int(event.keyCode) {
+            case kVK_Return, kVK_ANSI_KeypadEnter: AppModel.shared.allow(prompt)
+            case kVK_Escape: AppModel.shared.decline(prompt)
+            default:
+                releaseKeyboard()
+                return true
+            }
+            update()
+            return true
+        }
         guard let item = visibleItems.last(where: \.awaitingDecision) else {
             releaseKeyboard()
             return false
@@ -310,7 +343,12 @@ struct IncomingStack: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { _ in
             let items = IncomingPanelController.shared.visibleItems
+            let pairs = IncomingPanelController.shared.visiblePairs
             VStack(spacing: 8) {
+                ForEach(pairs) { prompt in
+                    PairCard(prompt: prompt)
+                        .transition(Motion.reduced ? .opacity : .move(edge: .trailing).combined(with: .opacity))
+                }
                 ForEach(items) { item in
                     IncomingCard(item: item)
                         .transition(.asymmetric(
@@ -323,6 +361,7 @@ struct IncomingStack: View {
             .padding(10)   // room for the card shadows
             .frame(width: 372)
             .animation(Motion.spring(0.35, 0.8), value: items.map(\.id))
+            .animation(Motion.spring(0.35, 0.8), value: pairs.map(\.id))
         }
     }
 }
@@ -408,13 +447,7 @@ struct IncomingCard: View {
             DeviceAvatar(device: device, size: 42)
                 .accessibilityHidden(true)
         } else {
-            Image(systemName: item.peerSymbol)
-                .font(.system(size: 19))
-                .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.15), radius: 1, y: 1)
-                .frame(width: 42, height: 42)
-                .background(Circle().fill(LinearGradient(colors: Palette.gradients[0], startPoint: .top, endPoint: .bottom)))
-                .overlay(Circle().strokeBorder(.white.opacity(0.18), lineWidth: 0.5))
+            DevicePlate(art: item.peerArt, colors: Palette.gradients[0], size: 42)
                 .accessibilityHidden(true)
         }
     }
@@ -564,6 +597,121 @@ struct IncomingCard: View {
     }
 }
 
+/// "Noah wants to auto-accept files with you": allowing lists each other on both sides, so transfers between the two
+/// skip the request card from then on – in both directions.
+struct PairCard: View {
+    let prompt: PairPrompt
+    @State private var app = AppModel.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                avatar
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(prompt.peerName)
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(1)
+                    HStack(spacing: 4) {
+                        if let symbol = resultSymbol {
+                            Image(systemName: symbol.0)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(symbol.1)
+                        }
+                        Text(stateLine)
+                            .font(.system(size: 12))
+                            .foregroundStyle(prompt.outcome == .paired ? .primary : .secondary)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            if prompt.awaitingDecision {
+                HStack(alignment: .firstTextBaseline, spacing: 7) {
+                    Image(systemName: "arrow.left.arrow.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                    Text("Files between you two will arrive without asking – in both directions. You can turn it off any time in Settings → Receive.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.accentColor.opacity(0.09)))
+                .padding(.leading, 54)
+                decision
+            }
+        }
+        .padding(14)
+        .frame(width: 352, alignment: .leading)
+        .glassSurface(cornerRadius: 16, material: .hudWindow)
+        .shadow(color: .black.opacity(0.2), radius: 9, y: 4)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text(verbatim: "\(prompt.peerName): \(stateLine)"))
+    }
+
+    @ViewBuilder
+    private var avatar: some View {
+        ZStack(alignment: .bottomTrailing) {
+            if let device = app.devices.first(where: { $0.id == prompt.deviceID }) {
+                DeviceAvatar(device: device, size: 42)
+            } else {
+                DevicePlate(art: prompt.peerArt, colors: Palette.gradients[0], size: 42)
+            }
+            Image(systemName: "bolt.fill")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 17, height: 17)
+                .background(Circle().fill(Color.accentColor))
+                .overlay(Circle().strokeBorder(.white.opacity(0.9), lineWidth: 1.2))
+                .offset(x: 3, y: 3)
+        }
+        .accessibilityHidden(true)
+    }
+
+    private var decision: some View {
+        HStack(spacing: 8) {
+            Button { app.decline(prompt) } label: {
+                HStack(spacing: 6) {
+                    Text("Not Now")
+                    KeyHintCap(glyph: "⎋")
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(PanelButtonStyle())
+            .help("Decline (⎋)")
+            Button { app.allow(prompt) } label: {
+                HStack(spacing: 6) {
+                    Text("Allow")
+                    KeyHintCap(glyph: "⏎", onAccent: true)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(PanelButtonStyle(prominent: true))
+            .help("Allow auto-accept with \(prompt.peerName) (⏎)")
+        }
+    }
+
+    private var stateLine: String {
+        switch prompt.outcome {
+        case nil: return String(localized: "wants to auto-accept files with you")
+        case .paired: return prompt.finishedAt == nil ? String(localized: "Connecting…") : String(localized: "Auto-accept is on – both ways")
+        case .declined: return String(localized: "Declined")
+        case .expired: return String(localized: "The request expired")
+        }
+    }
+
+    private var resultSymbol: (String, Color)? {
+        switch prompt.outcome {
+        case .paired where prompt.finishedAt != nil: return ("checkmark.circle.fill", .green)
+        case .declined, .expired: return ("xmark.circle.fill", .secondary)
+        default: return nil
+        }
+    }
+}
+
 /// The sender's message on a request card: a soft speech bubble with a small tail towards the sender's name.
 /// The text is shown verbatim (no Markdown, no links) and can be selected and copied.
 struct NoteBubble: View {
@@ -633,6 +781,8 @@ final class ReceivedThumbController {
         let id: UUID
         let urls: [URL]
         let peerName: String
+        /// The sender's note, kept next to the thumbnail: auto-accepted transfers never showed a request card.
+        var note: String? = nil
         var shownAt: Date
         var hovered = false
     }
@@ -645,13 +795,13 @@ final class ReceivedThumbController {
 
     func add(_ item: TransferItem) {
         guard !item.savedURLs.isEmpty else { return }
-        entries.append(Entry(id: item.id, urls: item.savedURLs, peerName: item.peerName, shownAt: Date()))
+        entries.append(Entry(id: item.id, urls: item.savedURLs, peerName: item.peerName, note: item.note, shownAt: Date()))
         present()
     }
 
     /// Dev aid (`--snapshot`): shows thumbnails for existing files without a transfer.
-    func debugAdd(urls: [URL], from peerName: String) {
-        entries.append(Entry(id: UUID(), urls: urls, peerName: peerName, shownAt: Date()))
+    func debugAdd(urls: [URL], from peerName: String, note: String? = nil) {
+        entries.append(Entry(id: UUID(), urls: urls, peerName: peerName, note: note, shownAt: Date()))
     }
 
     func remove(_ id: UUID) {
@@ -770,6 +920,15 @@ struct ReceivedThumb: View {
     let entry: ReceivedThumbController.Entry
 
     var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            if let note = entry.note {
+                ThumbNote(peerName: entry.peerName, text: note)
+            }
+            thumb
+        }
+    }
+
+    private var thumb: some View {
         ZStack(alignment: .topTrailing) {
             ZStack {
                 ForEach(Array(entry.urls.prefix(2).enumerated().reversed()), id: \.element) { i, url in
@@ -798,6 +957,33 @@ struct ReceivedThumb: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Received from \(entry.peerName): \(entry.urls.map(\.lastPathComponent).joined(separator: ", "))")
         .accessibilityAddTraits(.isButton)
+    }
+}
+
+/// The note next to a received thumbnail: who sent it and what they wrote, as a callout pointing at the files.
+struct ThumbNote: View {
+    let peerName: String
+    let text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(peerName)
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Text(verbatim: text)
+                .font(.system(size: 12))
+                .lineLimit(5)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+        }
+        .padding(.horizontal, 11)
+        .padding(.vertical, 8)
+        .frame(maxWidth: 230, alignment: .leading)
+        .glassSurface(cornerRadius: 13, material: .hudWindow)
+        .shadow(color: .black.opacity(0.16), radius: 7, y: 3)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(String(localized: "Sender’s note: \(text)"))
     }
 }
 

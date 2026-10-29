@@ -32,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if Relocation.offerIfNeeded() { return }
         AppModel.shared.start()
+        Updater.shared.start()
         statusItem = StatusItemController()
         // First-run setup assistant (replaces the old didShowWelcome → popover); "Fertig" then opens the popover.
         OnboardingController.shared.onFinished = { [weak self] in

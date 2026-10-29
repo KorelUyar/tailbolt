@@ -5,6 +5,14 @@ import TailboltCore
 struct Device: Identifiable, Hashable {
     let peer: TailnetPeer
     let hello: HelloInfo?
+    /// Product picture or symbol, resolved once per discovery round.
+    let art: DeviceArt
+
+    init(peer: TailnetPeer, hello: HelloInfo?) {
+        self.peer = peer
+        self.hello = hello
+        self.art = DeviceArt.make(os: peer.os, name: peer.displayName, model: hello?.model)
+    }
 
     var id: String { peer.id }
     var name: String { peer.displayName }
@@ -18,31 +26,17 @@ struct Device: Identifiable, Hashable {
         return u.displayName.isEmpty ? u.loginName : u.displayName
     }
 
-    var symbol: String { DeviceSymbol.for(os: peer.os, name: name) }
+    var symbol: String { art.symbol }
 
     /// Short label for how traffic reaches this device ("Direkt (LAN)", "Relay", …), empty when idle.
     var pathLabel: String { peer.path.label }
     var pathIsSlow: Bool { peer.path == .relay }
-}
 
-enum DeviceSymbol {
-    static func `for`(os: String, name: String) -> String {
-        let n = name.lowercased()
-        switch os.lowercased() {
-        case "macos":
-            if n.contains("mini") { return "macmini" }
-            if n.contains("studio") { return "macstudio" }
-            if n.contains("imac") { return "desktopcomputer" }
-            return "laptopcomputer"
-        case "ios":
-            return n.contains("ipad") ? "ipad" : "iphone"
-        case "windows": return "pc"
-        case "linux": return "server.rack"
-        case "android": return "smartphone"
-        case "tvos": return "appletv"
-        default: return "desktopcomputer"
-        }
-    }
+    /// Tailbolt version the device announced ("2.0"); nil for Taildrop-only devices and before the first probe.
+    var tailboltVersion: String? { hello.flatMap { $0.app.isEmpty ? nil : $0.app } }
+    /// Known to run a Tailbolt that can't show notes (2.0/2.1 never list the capability).
+    var cannotShowNotes: Bool { tailboltVersion != nil && hello?.supportsNotes == false }
+    var canPair: Bool { hello?.supportsPairing == true }
 }
 
 enum Direction { case outgoing, incoming }
@@ -53,7 +47,8 @@ final class TransferItem: Identifiable {
     let direction: Direction
     let deviceID: String?
     let peerName: String
-    let peerSymbol: String
+    let peerArt: DeviceArt
+    var peerSymbol: String { peerArt.symbol }
     var names: [String]
     var totalBytes: Int64 = 0
     var bytes: Int64 = 0
@@ -81,6 +76,8 @@ final class TransferItem: Identifiable {
     var savedURLs: [URL] = []
     /// The sender's message: typed in the shelf (outgoing) or shown on the request card (incoming).
     var note: String?
+    /// Outgoing: the receiver runs a Tailbolt without notes (2.0/2.1) – the files arrive, the note isn't shown there.
+    var noteNotShown = false
     var awaitingDecision = false
     var dismissed = false
     var createdAt = Date()
@@ -95,11 +92,11 @@ final class TransferItem: Identifiable {
     /// Runs once when the transfer reaches a terminal state, whichever path set it.
     @ObservationIgnored var onEnd: (() -> Void)?
 
-    init(direction: Direction, deviceID: String?, peerName: String, peerSymbol: String, names: [String]) {
+    init(direction: Direction, deviceID: String?, peerName: String, peerArt: DeviceArt, names: [String]) {
         self.direction = direction
         self.deviceID = deviceID
         self.peerName = peerName
-        self.peerSymbol = peerSymbol
+        self.peerArt = peerArt
         self.names = names
     }
 
@@ -166,6 +163,31 @@ final class TransferItem: Identifiable {
         taildrop?.cancel()
         if !state.isTerminal { state = .cancelled(nil) }
     }
+}
+
+/// Someone asks to pair for mutual auto-accept; shown as a card next to the incoming offers.
+@MainActor @Observable
+final class PairPrompt: Identifiable {
+    enum Outcome { case paired, declined, expired }
+
+    let id = UUID()
+    let deviceID: String
+    let peerName: String
+    let peerArt: DeviceArt
+    var outcome: Outcome?
+    var finishedAt: Date?
+    var createdAt = Date()
+    @ObservationIgnored let request: PairRequest?
+
+    init(deviceID: String, peerName: String, peerArt: DeviceArt, request: PairRequest?) {
+        self.deviceID = deviceID
+        self.peerName = peerName
+        self.peerArt = peerArt
+        self.request = request
+    }
+
+    /// The user hasn't answered yet (and the sender is still waiting).
+    var awaitingDecision: Bool { outcome == nil }
 }
 
 /// What went out last and where to – the popover's "Zuletzt" row and "Erneut senden".
@@ -358,8 +380,10 @@ final class AppModel {
         tailscaleMissing = false
         let now = Date()
         seen = [:]
+        let models = ["demo-noah": "Mac16,1", "demo-lena": "Mac16,9"]
         for p in peers where !p.taildropAvailable {
-            seen[p.id] = (HelloInfo(name: p.hostName, os: p.os, app: Tailbolt.appVersion), now)
+            seen[p.id] = (HelloInfo(name: p.hostName, os: p.os, app: Tailbolt.appVersion, caps: ["lz4", "lan", "note", "pair"],
+                                    model: models[p.id]), now)
         }
         rebuildDevices()
     }
@@ -369,13 +393,15 @@ final class AppModel {
         rebuildDevices()
     }
 
-    fileprivate func sawHello(from ip: String) {
+    fileprivate func sawHello(_ info: HelloInfo, from ip: String) {
         guard let peer = status?.peers.first(where: { $0.ips.contains(ip) }) else {
             if Date().timeIntervalSince(lastRefresh) > 3 { refresh() }
             return
         }
-        if seen[peer.id] == nil {
-            seen[peer.id] = (HelloInfo(name: peer.displayName, os: peer.os, app: ""), Date())
+        // Their hello says what they can do (caps, model) as well as any probe of ours would.
+        let known = seen[peer.id]?.hello
+        if known == nil || known != info {
+            seen[peer.id] = (info.app.isEmpty ? (known ?? info) : info, Date())
             rebuildDevices()
         } else {
             seen[peer.id]?.at = Date()
@@ -471,6 +497,100 @@ final class AppModel {
         return settings.autoAcceptFavorites && settings.favoriteSlot(of: peerID) != nil
     }
 
+    // MARK: pairing
+
+    /// Pairing cards on screen (incoming requests).
+    var pairPrompts: [PairPrompt] = []
+    /// Our own requests waiting for the other side, by device id.
+    private(set) var pairingInFlight: Set<String> = []
+
+    /// Asks `device` to auto-accept each other's files. Their user confirms on a card; both sides then list each
+    /// other, and turning it off on either side tells the other one.
+    func requestPairing(with device: Device) {
+        guard !pairingInFlight.contains(device.id) else { return }
+        guard device.canPair else {
+            ToastController.shared.flash(String(localized: "\(device.name) needs Tailbolt 2.3 or newer for this"), symbol: "arrow.down.circle", tone: .error, duration: 4)
+            return
+        }
+        pairingInFlight.insert(device.id)
+        ToastController.shared.flash(String(localized: "Waiting for \(device.name) to allow it…"), symbol: "person.line.dotted.person", tone: .info, duration: 4)
+        let host = device.peer.address, name = myName
+        Task.detached(priority: .userInitiated) {
+            let outcome = Pairing.request(host: host, myName: name)
+            await MainActor.run { self.pairingFinished(device, outcome) }
+        }
+    }
+
+    private func pairingFinished(_ device: Device, _ outcome: Pairing.Outcome) {
+        pairingInFlight.remove(device.id)
+        switch outcome {
+        case .accepted:
+            Settings.shared.setPaired(device.id, name: device.name)
+            ToastController.shared.flash(String(localized: "Auto-accept with \(device.name) is on – both ways"), symbol: "checkmark.circle.fill", tone: .success, duration: 4)
+        case .declined:
+            ToastController.shared.flash(String(localized: "\(device.name) didn’t allow auto-accept"), symbol: "xmark.circle.fill", tone: .error, duration: 4)
+        case .failed(let reason):
+            ToastController.shared.flash(reason, symbol: "exclamationmark.triangle", tone: .error, duration: 4)
+        }
+    }
+
+    /// Stops auto-accepting from this device; when it was paired, the other side is told (if it is online).
+    func unpair(deviceID: String) {
+        let settings = Settings.shared
+        let wasPaired = settings.isPaired(deviceID)
+        settings.setAlwaysAccept(deviceID, name: nil, on: false)
+        guard wasPaired, let device = devices.first(where: { $0.id == deviceID }), !demoMode else { return }
+        let host = device.peer.address, name = myName
+        Task.detached(priority: .utility) { Pairing.revoke(host: host, myName: name) }
+    }
+
+    fileprivate func receivedPairRequest(_ r: PairRequest) {
+        guard let peer = status?.peers.first(where: { $0.ips.contains(r.remoteAddress) }) else {
+            r.decline("Unknown device"); return
+        }
+        let settings = Settings.shared
+        // Already paired here (the other side forgot): confirm without asking again.
+        if settings.isPaired(peer.id) { r.accept(); return }
+        if pairPrompts.contains(where: { $0.deviceID == peer.id && $0.awaitingDecision }) {
+            r.decline("Already asked"); return
+        }
+        let art = devices.first { $0.id == peer.id }?.art ?? DeviceArt.make(os: peer.os, name: peer.displayName, model: nil)
+        let prompt = PairPrompt(deviceID: peer.id, peerName: peer.displayName, peerArt: art, request: r)
+        r.onFinish = { ok in
+            DispatchQueue.main.async {
+                // Trust is only stored once the sender got the answer; a click after it gave up changes nothing.
+                if ok { Settings.shared.setPaired(prompt.deviceID, name: prompt.peerName) }
+                if prompt.outcome == nil || (prompt.outcome == .paired && !ok) { prompt.outcome = ok ? .paired : .expired }
+                prompt.finishedAt = Date()
+                IncomingPanelController.shared.update()
+            }
+        }
+        pairPrompts.append(prompt)
+        Sounds.incoming()
+        IncomingPanelController.shared.update()
+    }
+
+    func allow(_ prompt: PairPrompt) {
+        guard prompt.awaitingDecision else { return }
+        prompt.outcome = .paired
+        prompt.request?.accept()
+        IncomingPanelController.shared.update()
+    }
+
+    func decline(_ prompt: PairPrompt) {
+        guard prompt.awaitingDecision else { return }
+        prompt.outcome = .declined
+        prompt.finishedAt = Date()
+        prompt.request?.decline()
+        IncomingPanelController.shared.update()
+    }
+
+    fileprivate func receivedUnpair(from ip: String) {
+        guard let peer = status?.peers.first(where: { $0.ips.contains(ip) }), Settings.shared.isPaired(peer.id) else { return }
+        Settings.shared.setAlwaysAccept(peer.id, name: nil, on: false)
+        ToastController.shared.flash(String(localized: "\(peer.displayName) turned off auto-accept"), symbol: "person.line.dotted.person", tone: .info, duration: 4)
+    }
+
     // MARK: sending
 
     /// Zero-UI path (hotkeys): sends to a device by id and lets the HUD toast report progress.
@@ -488,7 +608,7 @@ final class AppModel {
         Settings.shared.noteUsed(device.id, name: device.name)
         rememberPayload(urls, to: device)
         let item = TransferItem(direction: .outgoing, deviceID: device.id, peerName: device.name,
-                                peerSymbol: device.symbol, names: urls.map(\.lastPathComponent))
+                                peerArt: device.art, names: urls.map(\.lastPathComponent))
         let note = Tailbolt.sanitizedNote(note)
         item.note = device.viaTaildrop ? nil : note   // Taildrop has no place for a message
         item.sourceURLs = urls
@@ -533,6 +653,7 @@ final class AppModel {
                     t.onStateChange = { s in
                         DispatchQueue.main.async {
                             item.state = s
+                            if s == .waiting, item.note != nil, t.receiverShowsNotes == false { item.noteNotShown = true }
                             if s == .transferring { item.lastSample = nil }
                             if s.isTerminal {
                                 item.bytes = t.bytesTransferred
@@ -565,8 +686,8 @@ final class AppModel {
         let peer = status?.peers.first { $0.ips.contains(t.remoteAddress) }
         let isLocal = t.remoteAddress == "127.0.0.1" || t.remoteAddress == "::1" || status?.selfIPs.contains(t.remoteAddress) == true
         let name = peer?.displayName ?? t.senderName
-        let item = TransferItem(direction: .incoming, deviceID: peer?.id, peerName: name,
-                                peerSymbol: DeviceSymbol.for(os: peer?.os ?? "macOS", name: name),
+        let art = devices.first { $0.id == peer?.id }?.art ?? DeviceArt.make(os: peer?.os ?? "macOS", name: name, model: nil)
+        let item = TransferItem(direction: .incoming, deviceID: peer?.id, peerName: name, peerArt: art,
                                 names: t.topLevelNames)
         item.incoming = t
         item.note = t.note
@@ -628,7 +749,17 @@ private final class ServerBridge: TailboltServerDelegate {
         DispatchQueue.main.async { [weak model] in model?.received(transfer) }
     }
 
+    func server(_ server: TailboltServer, didReceivePairRequest request: PairRequest) {
+        DispatchQueue.main.async { [weak model] in
+            if let model { model.receivedPairRequest(request) } else { request.decline() }
+        }
+    }
+
+    func server(_ server: TailboltServer, didReceiveUnpairFrom ip: String) {
+        DispatchQueue.main.async { [weak model] in model?.receivedUnpair(from: ip) }
+    }
+
     func server(_ server: TailboltServer, didSeeHello info: HelloInfo, from ip: String) {
-        DispatchQueue.main.async { [weak model] in model?.sawHello(from: ip) }
+        DispatchQueue.main.async { [weak model] in model?.sawHello(info, from: ip) }
     }
 }

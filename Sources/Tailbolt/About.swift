@@ -254,6 +254,7 @@ struct AboutView: View {
     @State private var app = AppModel.shared
     @State private var settings = Settings.shared
     @State private var bench = SettingsPreview.bench ?? BenchModel.shared
+    @State private var updater = Updater.shared
     @State private var target = ""
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -282,6 +283,24 @@ struct AboutView: View {
                     LabeledContent("Tailscale IP", value: app.status?.selfIPs.first ?? "–")
                     LabeledContent("Receiving", value: "Port \(Tailbolt.defaultPort) (TCP)")
                     LabeledContent("Protocol", value: "Version \(Tailbolt.protocolVersion) · " + (LZ4.available ? "LZ4 · " : "") + String(localized: "LAN Turbo"))
+                }
+
+                Section {
+                    Toggle("Check for updates automatically", isOn: $settings.checkForUpdates)
+                        .help("Asks GitHub once a day whether a newer Tailbolt is out")
+                    HStack(spacing: 12) {
+                        updateStatus
+                        Spacer(minLength: 12)
+                        if let release = updater.latest {
+                            Button("Update to \(release.version)") { updater.installLatest() }
+                                .disabled(updater.install == .downloading || updater.install == .installing)
+                        } else {
+                            Button("Check Now") { updater.check() }
+                                .disabled(updater.isChecking)
+                        }
+                    }
+                } header: {
+                    Text("Updates")
                 }
 
                 Section {
@@ -392,6 +411,31 @@ struct AboutView: View {
                 .font(.system(size: 12))
                 .foregroundStyle(.red)
                 .lineLimit(2)
+        }
+    }
+
+    @ViewBuilder
+    private var updateStatus: some View {
+        if updater.isChecking {
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Checking…").foregroundStyle(.secondary)
+            }
+        } else if case .failed(let reason) = updater.install {
+            Label(reason, systemImage: "exclamationmark.triangle").foregroundStyle(.red).lineLimit(2)
+        } else if updater.install == .downloading || updater.install == .installing {
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text(updater.install == .downloading ? String(localized: "Downloading…") : String(localized: "Installing…")).foregroundStyle(.secondary)
+            }
+        } else if let release = updater.latest {
+            Text("Tailbolt \(release.version) is available")
+        } else if let error = updater.lastError {
+            Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.secondary).lineLimit(2)
+        } else if updater.upToDate {
+            Label("Tailbolt is up to date", systemImage: "checkmark.circle.fill").foregroundStyle(.secondary)
+        } else {
+            Text(Self.versionText).foregroundStyle(.secondary)
         }
     }
 

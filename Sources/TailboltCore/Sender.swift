@@ -104,6 +104,10 @@ public final class OutgoingTransfer: TransferBase {
     public var compressionEnabled = true
     /// Message shown to the recipient on the request card (set before `start()`).
     public var note: String?
+    /// What the receiver's hello said, known from `.waiting` on: whether its request card shows notes and which
+    /// Tailbolt it runs ("2.0" there means the note was sent but nobody will see it).
+    public private(set) var receiverShowsNotes: Bool?
+    public private(set) var receiverVersion: String?
 
     private let myName: String
     private var sources: [String?] = []
@@ -173,6 +177,8 @@ public final class OutgoingTransfer: TransferBase {
             let theirHello = try control.receive()
             guard theirHello.t == "hello" else { throw SocketError(String(localized: "Unexpected response")) }
             let caps = Set(theirHello.caps ?? [])
+            receiverShowsNotes = caps.contains("note")
+            receiverVersion = theirHello.app
             allowCompression = compressionEnabled && LZ4.available && caps.contains("lz4") && !isBench
             if isBench && (theirHello.v ?? 1) < 2 {
                 throw SocketError(String(localized: "Tailbolt on the other device is too old for the test"))
