@@ -3,7 +3,7 @@ import Foundation
 public enum Tailbolt {
     public static let defaultPort: UInt16 = 48484
     public static let protocolVersion = 2
-    public static let appVersion = "2.3"
+    public static let appVersion = "2.3.1"
     static let maxChunkSize: Int64 = 16 << 20
     static let ioBufferSize = 4 << 20
     /// Parallel TCP streams through the tailnet and (when both ends share a LAN) directly over it.
@@ -117,11 +117,11 @@ extension ByteStream {
         try sendAll(frame)
     }
 
-    public func receive() throws -> Msg {
+    public func receive(maxBytes: Int = 64 << 20) throws -> Msg {
         var len: UInt32 = 0
         try withUnsafeMutableBytes(of: &len) { try recvExact($0.baseAddress!, 4) }
         let count = Int(UInt32(bigEndian: len))
-        guard count > 0, count < 64 << 20 else { throw SocketError(String(localized: "Invalid frame")) }
+        guard count > 0, count < maxBytes else { throw SocketError(String(localized: "Invalid frame")) }
         var body = Data(count: count)
         try body.withUnsafeMutableBytes { try recvExact($0.baseAddress!, count) }
         return try wireDecoder.decode(Msg.self, from: body)

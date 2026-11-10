@@ -34,6 +34,10 @@ final class IncomingPanelController {
     private var handedOff: Set<UUID> = []
     /// Offers that already had their one keyboard grab (or whose grab the user cancelled by typing on).
     private var grabbed: Set<UUID> = []
+    /// When the keyboard was last taken for a new card. ↩ is ignored for a moment after that, so a Return
+    /// that was already on its way into another app cannot accept an offer or allow a pairing.
+    private var grabbedAt = Date.distantPast
+    private static let returnGrace: TimeInterval = 0.8
 
     /// Cards on screen: offers, running transfers, and terminal ones for a moment – declined/failed for 6 s,
     /// finished just long enough for the bar to fill before the card collapses into the floating thumbnail.
@@ -158,6 +162,7 @@ final class IncomingPanelController {
             + visiblePairs.filter { $0.awaitingDecision && !grabbed.contains($0.id) }.map(\.id)
         guard !fresh.isEmpty, !otherWindowIsKey else { return }
         grabbed.formUnion(fresh)
+        grabbedAt = Date()
         if !panel.isKeyWindow {
             panel.wantsKeyboard = true
             panel.makeKey()
@@ -218,6 +223,8 @@ final class IncomingPanelController {
     private func handleKey(_ event: NSEvent) -> Bool {
         guard let panel, panel.isVisible, panel.isKeyWindow else { return false }
         guard !event.isARepeat else { return true }
+        let isReturn = Int(event.keyCode) == kVK_Return || Int(event.keyCode) == kVK_ANSI_KeypadEnter
+        if isReturn, Date().timeIntervalSince(grabbedAt) < Self.returnGrace { return true }
         // A pairing request sits on top of the stack and answers first.
         if let prompt = visiblePairs.first(where: \.awaitingDecision) {
             switch Int(event.keyCode) {

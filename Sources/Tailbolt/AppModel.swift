@@ -684,7 +684,6 @@ final class AppModel {
 
     fileprivate func received(_ t: IncomingTransfer) {
         let peer = status?.peers.first { $0.ips.contains(t.remoteAddress) }
-        let isLocal = t.remoteAddress == "127.0.0.1" || t.remoteAddress == "::1" || status?.selfIPs.contains(t.remoteAddress) == true
         let name = peer?.displayName ?? t.senderName
         let art = devices.first { $0.id == peer?.id }?.art ?? DeviceArt.make(os: peer?.os ?? "macOS", name: name, model: nil)
         let item = TransferItem(direction: .incoming, deviceID: peer?.id, peerName: name, peerArt: art,
@@ -714,7 +713,9 @@ final class AppModel {
         }
 
         let trusted = isAlwaysAccepted(peerID: peer?.id)
-        if (Settings.shared.autoAcceptOwnDevices && (peer?.isMine == true || isLocal)) || trusted {
+        // Only another device of the user counts as "mine". A connection from this Mac itself (loopback or
+        // its own tailnet address) is some local process and gets a card like everyone else.
+        if (Settings.shared.autoAcceptOwnDevices && peer?.isMine == true) || trusted {
             accept(item)
         } else {
             item.awaitingDecision = true

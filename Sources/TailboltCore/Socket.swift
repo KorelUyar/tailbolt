@@ -269,7 +269,13 @@ public final class Listener {
                 $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin.accept(fd, $0, &len) }
             }
             if cfd < 0 {
-                if Foundation.errno == EINTR || Foundation.errno == ECONNABORTED { continue }
+                let code = Foundation.errno
+                if code == EINTR || code == ECONNABORTED { continue }
+                // Out of descriptors or buffers is temporary. Giving up here would stop receiving for good.
+                if code == EMFILE || code == ENFILE || code == ENOBUFS || code == ENOMEM {
+                    usleep(200_000)
+                    continue
+                }
                 throw SocketError.errno("accept")
             }
             return Socket(fd: cfd, remoteAddress: Listener.describe(&storage))
@@ -297,9 +303,13 @@ public final class Listener {
 }
 
 public enum TailnetAddress {
-    /// Tailscale hands out 100.64.0.0/10 and fd7a:115c:a1e0::/48. Loopback is allowed for local testing.
+    /// `TAILBOLT_ALLOW_LOOPBACK=1` accepts connections from this machine itself (tests and benchmarks only:
+    /// otherwise any local process, even a sandboxed one, could send files here).
+    static let loopbackAllowed = ProcessInfo.processInfo.environment["TAILBOLT_ALLOW_LOOPBACK"] == "1"
+
+    /// Tailscale hands out 100.64.0.0/10 and fd7a:115c:a1e0::/48.
     public static func isAllowed(_ ip: String) -> Bool {
-        if ip == "127.0.0.1" || ip == "::1" { return true }
+        if ip == "127.0.0.1" || ip == "::1" { return loopbackAllowed }
         if ip.lowercased().hasPrefix("fd7a:115c:a1e0:") { return true }
         let parts = ip.split(separator: ".").compactMap { Int($0) }
         if parts.count == 4, parts[0] == 100, (64...127).contains(parts[1]) { return true }

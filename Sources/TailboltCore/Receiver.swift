@@ -32,6 +32,9 @@ public final class TailboltServer {
     private var listener: Listener?
     private let lock = NSLock()
     private var transfers: [String: IncomingTransfer] = [:]
+    /// Connections being served right now. A flood of them must not use up every file descriptor.
+    private var openConnections = 0
+    private static let maxConnections = 256
 
     public init(port: UInt16 = Tailbolt.defaultPort, myName: @escaping () -> String) {
         self.port = port
@@ -43,7 +46,16 @@ public final class TailboltServer {
         listener = l
         Thread.detachNewThread { [weak self] in
             while let s = try? l.accept() {
-                Thread.detachNewThread { self?.handle(s) }
+                guard let self else { s.close(); continue }
+                self.lock.lock()
+                let admitted = self.openConnections < Self.maxConnections
+                if admitted { self.openConnections += 1 }
+                self.lock.unlock()
+                guard admitted else { s.close(); continue }
+                Thread.detachNewThread {
+                    self.handle(s)
+                    self.lock.lock(); self.openConnections -= 1; self.lock.unlock()
+                }
             }
         }
     }
@@ -56,7 +68,8 @@ public final class TailboltServer {
     private func handle(_ s: Socket) {
         let fromTailnet = TailnetAddress.isAllowed(s.remoteAddress)
         s.setReceiveTimeout(30)
-        guard let first = try? s.receive() else { Debug.log("rx \(s.remoteAddress): no first frame"); s.close(); return }
+        // Anyone can reach this port, so the first frame (a hello or a data envelope) has to be small.
+        guard let first = try? s.receive(maxBytes: 64 << 10) else { Debug.log("rx \(s.remoteAddress): no first frame"); s.close(); return }
         switch first.t {
         case "hello" where fromTailnet:
             var reply = makeHello(name: myName())
@@ -111,7 +124,8 @@ public final class TailboltServer {
     }
 
     private func handleOffer(_ offer: Msg, hello: Msg, control: Socket) {
-        guard let id = offer.id, let items = offer.items, IncomingTransfer.validate(items) == nil else {
+        guard let id = offer.id, IncomingTransfer.isValidID(id), let items = offer.items,
+              IncomingTransfer.validate(items) == nil else {
             var err = Msg(t: "decline")
             err.reason = "Invalid offer"   // sent to the peer: English, localized there
             try? control.send(err)
@@ -130,7 +144,15 @@ public final class TailboltServer {
                                  senderName: hello.name ?? control.remoteAddress, remoteAddress: control.remoteAddress,
                                  control: control, lanFastPath: lanFastPathEnabled && (hello.caps ?? []).contains("lan"),
                                  bench: bench, note: offer.note)
-        lock.lock(); transfers[id] = t; lock.unlock()
+        // An id that is already in use would let a second offer take over the first one's connections.
+        lock.lock()
+        let taken = transfers[id] != nil
+        if !taken { transfers[id] = t }
+        lock.unlock()
+        guard !taken else {
+            var err = Msg(t: "decline"); err.reason = "Invalid offer"
+            try? control.send(err); control.close(); return
+        }
         defer { lock.lock(); transfers.removeValue(forKey: id); lock.unlock() }
         if bench {
             t.accept(into: URL(fileURLWithPath: "/dev/null"))
@@ -170,7 +192,8 @@ public final class IncomingTransfer: TransferBase {
         self.note = bench ? nil : Tailbolt.sanitizedNote(note)
         self.remoteAddress = remoteAddress
         self.control = control
-        self.chunkSize = max(1 << 20, min(chunkSize, 256 << 20))
+        // Senders use at most `maxChunkSize`; every data connection allocates this much.
+        self.chunkSize = max(1 << 20, min(chunkSize, 4 * Tailbolt.maxChunkSize))
         self.lanFastPath = lanFastPath
         self.isBench = bench
         self.fileBytes = items.reduce(0) { $0 + (($1.d || $1.l != nil) ? 0 : $1.s) }
@@ -213,13 +236,42 @@ public final class IncomingTransfer: TransferBase {
         lock.unlock()
     }
 
-    /// Rejects absolute paths, traversal and anything nested below a symlink entry.
+    /// Transfer ids are UUIDs. The id is echoed on data connections and used as a dictionary key,
+    /// never as part of a path, but there is no reason to accept anything else.
+    static func isValidID(_ id: String) -> Bool {
+        (8...64).contains(id.utf8.count) && id.utf8.allSatisfy { c in
+            (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c == 45
+        }
+    }
+
+    /// Characters that have no business in a file name and can make one look like something else:
+    /// control characters and the bidirectional overrides and isolates.
+    static func isDeceptive(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.value {
+        case 0x00...0x1F, 0x7F...0x9F, 0x202A...0x202E, 0x2066...0x2069: return true
+        default: return false
+        }
+    }
+
+    static let maxItems = 2_000_000
+    /// 1 PiB per item and in total. Far beyond any disk, far below where sums could overflow.
+    static let maxBytes: Int64 = 1 << 50
+
+    /// Rejects absolute paths, traversal, deceptive names, absurd sizes and anything nested below a symlink entry.
     static func validate(_ items: [WireItem]) -> String? {
+        guard items.count <= maxItems else { return "too many items" }
         var links = Set<String>()
+        var total: Int64 = 0
         for item in items {
             let parts = item.p.split(separator: "/", omittingEmptySubsequences: false)
             if item.p.isEmpty || item.p.hasPrefix("/") || item.p.contains("\0") || item.s < 0 { return item.p }
             if parts.contains(where: { $0.isEmpty || $0 == "." || $0 == ".." }) { return item.p }
+            if item.p.unicodeScalars.contains(where: isDeceptive) { return item.p }
+            // The receiver's own staging folders are named like this.
+            if parts[0].hasPrefix(".tailbolt-") { return item.p }
+            if item.s > maxBytes { return item.p }
+            total += item.s
+            if total > maxBytes { return item.p }
             if item.l != nil {
                 if item.s != 0 || item.d { return item.p }
                 links.insert(item.p)
@@ -318,13 +370,16 @@ public final class IncomingTransfer: TransferBase {
         let fm = FileManager.default
         try fm.createDirectory(at: dest, withIntermediateDirectories: true)
         if let free = try? dest.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
-            .volumeAvailableCapacityForImportantUsage, free < fileBytes + (64 << 20) {
+            .volumeAvailableCapacityForImportantUsage, free - (64 << 20) < fileBytes {
             let size = ByteFormat.string(fileBytes)
             throw SocketError(String(localized: "Not enough disk space (\(size) needed)"),
                               english: "Not enough disk space (\(size) needed)")
         }
-        let stage = dest.appendingPathComponent(".tailbolt-\(id)", isDirectory: true)
-        try fm.createDirectory(at: stage, withIntermediateDirectories: true)
+        // The staging folder gets a name made up here. Nothing the sender says may become part of a
+        // path: the transfer id comes off the wire. It must also be new, so an existing folder or
+        // symlink of that name is never written through.
+        let stage = dest.appendingPathComponent(".tailbolt-" + UUID().uuidString, isDirectory: true)
+        try fm.createDirectory(at: stage, withIntermediateDirectories: false)
         lock.lock(); staging = stage; lock.unlock()
 
         for item in items {
@@ -375,6 +430,7 @@ public final class IncomingTransfer: TransferBase {
                                       ofItemAtPath: stage.appendingPathComponent(item.p).path)
             }
         }
+        Quarantine.mark(stage)
         var out: [URL] = []
         for name in topLevelNames {
             var target = dest.appendingPathComponent(name)
@@ -420,7 +476,7 @@ public final class IncomingTransfer: TransferBase {
                   o >= 0, n > 0 else { return }
             let compressed = msg.c == "lz4"
             let length = compressed ? (msg.u ?? -1) : n
-            guard length > 0, length <= chunkSize, o + length <= items[f].s,
+            guard length > 0, length <= chunkSize, o <= items[f].s - length,
                   !compressed || (LZ4.available && n <= Int64(LZ4.bound(maxChunk))) else { return }
             let key = ChunkKey(file: f, offset: o)
             lock.lock(); let duplicate = completedChunks.contains(key); lock.unlock()

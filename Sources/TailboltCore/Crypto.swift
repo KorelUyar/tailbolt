@@ -90,6 +90,8 @@ public final class SecureStream: ByteStream {
             guard try fillRecord() else { return 0 }
         }
         let n = min(count, plain.count - plainOffset)
+        // An authenticated but empty record has no bytes to hand out (and no base address).
+        guard n > 0 else { throw SocketError(String(localized: "Invalid frame")) }
         plain.withUnsafeBytes { src in
             ptr.copyMemory(from: src.baseAddress! + plainOffset, byteCount: n)
         }

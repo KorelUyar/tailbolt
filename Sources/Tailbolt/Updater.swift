@@ -105,7 +105,7 @@ final class Updater {
         let version = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
         let assets = json["assets"] as? [[String: Any]] ?? []
         guard let zip = assets.first(where: { $0["name"] as? String == "Tailbolt.zip" })?["browser_download_url"] as? String,
-              let zipURL = URL(string: zip), zipURL.host?.hasSuffix("github.com") == true else { return nil }
+              let zipURL = URL(string: zip), zipURL.scheme == "https", zipURL.host == "github.com" else { return nil }
         let page = (json["html_url"] as? String).flatMap(URL.init(string:)) ?? releasesPage
         return Release(version: version, zip: zipURL, page: page)
     }
