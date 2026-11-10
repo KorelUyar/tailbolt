@@ -3,12 +3,22 @@ import SwiftUI
 import TailboltCore
 
 /// Dev aid: `Tailbolt --snapshot <dir> [files…]` renders the main surfaces to PNGs (light + dark, 2x) and quits.
+///
+/// Two knobs for pictures that go somewhere else than the README:
+/// `TAILBOLT_SNAPSHOT_SCALE=3` renders at 3x, and `TAILBOLT_SNAPSHOT_BACKDROP=clear` leaves the gradient
+/// backdrop out, so the PNG is transparent around (and, where the material is, through) the surface and
+/// sits on whatever background the page it is shown on has.
 @MainActor
 enum Snapshot {
     /// Retina output; the point sizes stay the real ones.
-    static let scale: CGFloat = 2
+    static let scale: CGFloat = {
+        let asked = Double(ProcessInfo.processInfo.environment["TAILBOLT_SNAPSHOT_SCALE"] ?? "") ?? 2
+        return CGFloat(min(max(asked, 1), 4))
+    }()
+    static let clearBackdrop = ProcessInfo.processInfo.environment["TAILBOLT_SNAPSHOT_BACKDROP"] == "clear"
 
     static func run(dir: URL, files: [URL]) {
+        SnapshotLook.plainPanels = clearBackdrop
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         // The Finder Quick Action bundle, for inspection (plutil -lint) – nothing is installed.
         try? QuickActionInstaller.write(to: dir.appendingPathComponent("\(QuickActionInstaller.name).workflow"))
@@ -158,7 +168,14 @@ enum Snapshot {
             if !files.isEmpty {
                 render(ShelfView(model: shelf, onClose: {}, expandedList: true), to: dir.appendingPathComponent("shelf-list-\(suffix).png"), dark: dark)
             }
-            render(MenuView(close: {}).background(VisualEffect()), to: dir.appendingPathComponent("menu-\(suffix).png"), dark: dark)
+            if clearBackdrop {
+                let popover = RoundedRectangle(cornerRadius: 14, style: .continuous)
+                render(MenuView(close: {}).background(popover.fill(SnapshotLook.panel(dark: dark))).clipShape(popover)
+                        .overlay(popover.strokeBorder(dark ? Color.white.opacity(0.10) : Color.black.opacity(0.08), lineWidth: 0.5)),
+                       to: dir.appendingPathComponent("menu-\(suffix).png"), dark: dark)
+            } else {
+                render(MenuView(close: {}).background(VisualEffect()), to: dir.appendingPathComponent("menu-\(suffix).png"), dark: dark)
+            }
             render(VStack(spacing: 8) { IncomingCard(item: waiting); IncomingCard(item: running); IncomingCard(item: done) }.padding(10),
                    to: dir.appendingPathComponent("incoming-\(suffix).png"), dark: dark)
             render(VStack(spacing: 8) { PairCard(prompt: pairPrompt); PairCard(prompt: pairDone) }.padding(10),
@@ -230,7 +247,7 @@ enum Snapshot {
             .background(LinearGradient(colors: dark ? [Color(white: 0.16), Color(red: 0.1, green: 0.12, blue: 0.2)]
                                                     : [Color(red: 0.85, green: 0.88, blue: 0.95), Color(red: 0.95, green: 0.9, blue: 0.86)],
                                        startPoint: .topLeading, endPoint: .bottomTrailing)
-                        .opacity(chrome ? 1 : 0))
+                        .opacity(chrome && !clearBackdrop ? 1 : 0))
         let host = NSHostingView(rootView: root)
         host.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         NSApp.appearance = host.appearance   // AppKit controls inside (tab bar, pop-ups) follow the app appearance
@@ -270,7 +287,7 @@ enum Snapshot {
         bitmap.size = size
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
-        gradient(dark: dark)?.draw(in: NSRect(origin: .zero, size: size), angle: -45)
+        if !clearBackdrop { gradient(dark: dark)?.draw(in: NSRect(origin: .zero, size: size), angle: -45) }
         let rect = NSRect(x: pad, y: pad, width: frame.bounds.width, height: frame.bounds.height)
         let shape = NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
         NSGraphicsContext.saveGraphicsState()

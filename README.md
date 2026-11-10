@@ -152,6 +152,8 @@ and the `--snapshot` renderer that writes every UI surface to PNGs.
 </p>
 
 Every screenshot comes from `TAILBOLT_DEMO=1 Tailbolt --snapshot <dir>`, which renders with an example tailnet.
+For pictures that go on another background (the download page), `TAILBOLT_SNAPSHOT_BACKDROP=clear` leaves the
+gradient out and draws the panels plain, and `TAILBOLT_SNAPSHOT_SCALE=3` renders at three times the size.
 
 ## License
 

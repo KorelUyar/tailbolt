@@ -23,6 +23,16 @@ struct VisualEffect: NSViewRepresentable {
     }
 }
 
+/// How panels are drawn in `--snapshot` renders that leave the backdrop out (see `Snapshot`).
+@MainActor
+enum SnapshotLook {
+    static var plainPanels = false
+
+    static func panel(dark: Bool) -> Color {
+        dark ? Color(white: 0.17) : Color(white: 0.975)
+    }
+}
+
 /// Panel surface: Liquid Glass on macOS 26+, the classic vibrancy material before. Continuous corners (or a
 /// capsule for the HUD toast), 0.5 pt hairline; the panel itself supplies the shadow.
 /// The glass is a background layer, not a container: content drawn inside a glass container gets vibrancy
@@ -34,7 +44,13 @@ struct GlassSurface<S: InsettableShape>: ViewModifier {
     @Environment(\.colorScheme) private var scheme
 
     func body(content: Content) -> some View {
-        if #available(macOS 26, *) {
+        if SnapshotLook.plainPanels {
+            // Glass has nothing to show without a backdrop: a plain panel colour stands in (`--snapshot` only).
+            content
+                .background(shape.fill(SnapshotLook.panel(dark: scheme == .dark)))
+                .clipShape(shape)
+                .overlay(shape.strokeBorder(scheme == .dark ? Color.white.opacity(0.10) : Color.black.opacity(0.08), lineWidth: 0.5))
+        } else if #available(macOS 26, *) {
             content
                 .background {
                     // A dark tint renders as an opaque light slab on macOS 26, so dark mode uses plain glass.
