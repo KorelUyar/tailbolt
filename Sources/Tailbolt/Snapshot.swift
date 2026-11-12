@@ -244,10 +244,13 @@ enum Snapshot {
     private static func render<V: View>(_ view: V, to url: URL, dark: Bool, chrome: Bool = true) {
         let root = view
             .padding(chrome ? 24 : 0)
-            .background(LinearGradient(colors: dark ? [Color(white: 0.16), Color(red: 0.1, green: 0.12, blue: 0.2)]
-                                                    : [Color(red: 0.85, green: 0.88, blue: 0.95), Color(red: 0.95, green: 0.9, blue: 0.86)],
-                                       startPoint: .topLeading, endPoint: .bottomTrailing)
-                        .opacity(chrome && !clearBackdrop ? 1 : 0))
+            .background {
+                // A closure: as a view. (As an argument newer compilers cannot tell the view's opacity from the style's.)
+                LinearGradient(colors: dark ? [Color(white: 0.16), Color(red: 0.1, green: 0.12, blue: 0.2)]
+                                            : [Color(red: 0.85, green: 0.88, blue: 0.95), Color(red: 0.95, green: 0.9, blue: 0.86)],
+                               startPoint: .topLeading, endPoint: .bottomTrailing)
+                    .opacity(chrome && !clearBackdrop ? 1 : 0)
+            }
         let host = NSHostingView(rootView: root)
         host.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         NSApp.appearance = host.appearance   // AppKit controls inside (tab bar, pop-ups) follow the app appearance

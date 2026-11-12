@@ -3,7 +3,7 @@ import Foundation
 public enum Tailbolt {
     public static let defaultPort: UInt16 = 48484
     public static let protocolVersion = 2
-    public static let appVersion = "2.3.1"
+    public static let appVersion = "2.3.2"
     static let maxChunkSize: Int64 = 16 << 20
     static let ioBufferSize = 4 << 20
     /// Parallel TCP streams through the tailnet and (when both ends share a LAN) directly over it.

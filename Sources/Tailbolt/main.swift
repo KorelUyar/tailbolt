@@ -30,6 +30,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if i + 1 < args.count { OnboardingController.shared.debugTour(dir: URL(fileURLWithPath: args[i + 1])) }   // + PNG of every page
             return
         }
+        if args.contains("--popover-trace") {   // dev/QA: where the popover lands under the icon while its content changes height
+            AppModel.shared.useDemoTailnet()
+            statusItem = StatusItemController()
+            statusItem?.debugTrace()
+            return
+        }
         if Relocation.offerIfNeeded() { return }
         AppModel.shared.start()
         Updater.shared.start()

@@ -4,21 +4,28 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-VERSION="2.3.1"
+VERSION="2.3.2"
 BUILD="$(date +%Y%m%d%H%M)"
 # The macOS 27 SDK needs Xcode's SwiftUI macro plugin; the 26.5 SDK builds fine with the CLT alone.
 SDK="${TAILBOLT_SDK:-/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk}"
 [[ -d "$SDK" ]] || SDK="$(xcrun --show-sdk-path)"
 export SDKROOT="$SDK"
+# With Xcode selected (xcode-select), swift build takes Xcode's own newest SDK whatever SDKROOT says.
+# The release is built with the Command Line Tools and the SDK named above, so say so.
+[[ "$SDK" == /Library/Developer/CommandLineTools/* ]] && export DEVELOPER_DIR=/Library/Developer/CommandLineTools
+# The classic build system, by name: once Xcode is on the Mac, SwiftPM defaults to the new one ("swiftbuild"),
+# and that one stamps the binary as built with the SDK of the deployment target (14.0) instead of the real
+# one. AppKit reads that stamp: the app would get the looks and the behaviour of a macOS 14 app.
+SPM=(--build-system native)
 
 # Universal binary: each architecture gets its own scratch path, lipo merges them.
 ARCHS=(${=TAILBOLT_ARCHS:-arm64 x86_64})
 typeset -A BINS
 for arch in $ARCHS; do
   SCRATCH=".build/$arch"
-  swift build -c release --scratch-path "$SCRATCH" --triple "$arch-apple-macosx14.0" --product Tailbolt
-  swift build -c release --scratch-path "$SCRATCH" --triple "$arch-apple-macosx14.0" --product tailbolt-cli
-  BINS[$arch]="$(swift build -c release --scratch-path "$SCRATCH" --triple "$arch-apple-macosx14.0" --show-bin-path)"
+  swift build $SPM -c release --scratch-path "$SCRATCH" --triple "$arch-apple-macosx14.0" --product Tailbolt
+  swift build $SPM -c release --scratch-path "$SCRATCH" --triple "$arch-apple-macosx14.0" --product tailbolt-cli
+  BINS[$arch]="$(swift build $SPM -c release --scratch-path "$SCRATCH" --triple "$arch-apple-macosx14.0" --show-bin-path)"
 done
 BIN="$(mktemp -d)"
 for product in Tailbolt tailbolt-cli; do
@@ -58,6 +65,9 @@ codesign --force --sign - --entitlements ShareExtension/Share.entitlements "$APP
 codesign --force --sign - "$APP/Contents/Resources/tailbolt-cli"
 codesign --force --sign - "$APP"
 codesign --verify --strict "$APP"
+# The stamp must name the real SDK (see SPM above).
+STAMP="$(otool -l "$APP/Contents/MacOS/Tailbolt" | awk '/LC_BUILD_VERSION/{f=1} f && $1=="sdk"{print $2; exit}')"
+[[ "$STAMP" != 14.* ]] || { echo "error: the binary is stamped with SDK $STAMP, not the SDK it was built with" >&2; exit 1; }
 
 ditto -c -k --keepParent "$APP" dist/Tailbolt.zip
 echo "Built $APP ($BUILD)"

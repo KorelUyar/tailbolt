@@ -22,6 +22,9 @@ enum MenuActions {
 final class StatusItemController: NSObject, NSPopoverDelegate {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let popover = NSPopover()
+    private var host: NSHostingController<MenuView>?
+    /// Watches where the open popover is (see `keepBelowIcon`).
+    private var placement: [NSObjectProtocol] = []
     private var dropView: StatusDropView?
     private var iconTimer: Timer?
     private var iconKey = ""
@@ -45,7 +48,16 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         popover.behavior = .transient
         popover.animates = true
         popover.delegate = self
-        popover.contentViewController = NSHostingController(rootView: MenuView(close: { [weak self] in self?.popover.performClose(nil) }))
+        let host = NSHostingController(rootView: MenuView(close: { [weak self] in self?.popover.performClose(nil) }))
+        // The popover has to be told how big its content is. Left to itself the hosting view stretched the
+        // popover's window through layout constraints: the popover opened at AppKit's stock 320 × 320, was
+        // put under the icon at that size, and then grew by a hundred points behind its back. Where that
+        // growth went was up to the system: downwards on some, upwards and out of the screen on others
+        // (macOS 26 on a MacBook with a notch). With this option SwiftUI reports its size and the popover
+        // resizes itself, anchored to the icon.
+        host.sizingOptions = [.preferredContentSize]
+        popover.contentViewController = host
+        self.host = host
 
         DragState.shared.start()   // the halo wants drag state even when the shake trigger is off
         let t = Timer(timeInterval: 0.15, repeats: true) { [weak self] _ in
@@ -164,8 +176,48 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
 
     func showPopover() {
         guard let button = item.button, !popover.isShown else { return }
+        // Its real size before it is placed, so it opens where it stays.
+        // (Rounded the way SwiftUI rounds what it reports afterwards, or the popover would twitch by a point.)
+        if let size = host?.sizeThatFits(in: NSSize(width: MenuView.width, height: 10_000)), size.width > 0, size.height > 0 {
+            popover.contentSize = NSSize(width: size.width.rounded(.down), height: size.height.rounded(.down))
+        }
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
+        watchPlacement()
+    }
+
+    /// The popover hangs below the menu bar, whatever happens to it while it is open (its content changes
+    /// height, the menu bar slides away in a full-screen space). Every time its window moves or resizes it
+    /// is looked at, and pulled back down if its top edge has ended up above the icon or out of the screen.
+    private func watchPlacement() {
+        endWatchingPlacement()
+        guard let window = popover.contentViewController?.view.window else { return }
+        for name in [NSWindow.didMoveNotification, NSWindow.didResizeNotification] {
+            placement.append(NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.keepBelowIcon() }
+            })
+        }
+        keepBelowIcon()
+    }
+
+    private func endWatchingPlacement() {
+        placement.forEach(NotificationCenter.default.removeObserver)
+        placement = []
+    }
+
+    private func keepBelowIcon() {
+        guard popover.isShown, let window = popover.contentViewController?.view.window,
+              let button = item.button, let home = button.window else { return }
+        let frame = window.frame
+        let icon = home.convertToScreen(button.convert(button.bounds, to: nil))
+        guard let screen = NSScreen.screens.first(where: { $0.frame.intersects(frame) }) ?? home.screen ?? NSScreen.main else { return }
+        // Where the top edge belongs: touching the icon from below. While the menu bar is hidden the icon
+        // is out of sight above the screen; then it is the top of what the screen shows.
+        let iconHidden = icon.minY >= screen.frame.maxY - 1 || !screen.frame.intersects(icon)
+        let top = iconHidden ? screen.visibleFrame.maxY : icon.minY + 2
+        // A few points of slack: the arrow's tip overlaps the icon a little, differently from system to system.
+        guard frame.maxY > top + 6 else { return }
+        window.setFrameOrigin(NSPoint(x: frame.minX, y: top - frame.height))
     }
 
     /// ⌘-click: the Info tab (icon, version, tailnet, speed test) is the About window.
@@ -197,8 +249,75 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     @objc private func openDownloads() { NSWorkspace.shared.open(Settings.shared.downloadDirectory) }
     @objc private func openOnboarding() { MenuActions.openOnboarding.map { $0() } ?? SettingsWindow.show() }
 
+    // MARK: dev/QA
+
+    /// `--popover-trace`: opens the popover under the icon, changes how tall its content is a few times,
+    /// shoves it upwards once the way an unlucky system would, and prints where it sits against the icon
+    /// and the screen. It has to hang below the icon at every step ("TOO HIGH" otherwise), and it has to
+    /// open at the size it keeps ("SETTLED LATE" otherwise). Exit code 1 if any line said so.
+    func debugTrace() {
+        popover.behavior = .applicationDefined   // stays open whatever else happens on this Mac meanwhile
+        let steps: [(at: Int, what: String, run: () -> Void)] = [
+            (4, "open", { [weak self] in self?.showPopover() }),
+            (12, "no devices", { AppModel.shared.debugLimitDevices(0) }),
+            (20, "all devices", { AppModel.shared.debugLimitDevices(nil) }),
+            (28, "one device", { AppModel.shared.debugLimitDevices(1) }),
+            (36, "all devices", { AppModel.shared.debugLimitDevices(nil) }),
+            (44, "shoved 120 points up", { [weak self] in
+                guard let window = self?.popover.contentViewController?.view.window else { return }
+                window.setFrameOrigin(NSPoint(x: window.frame.minX, y: window.frame.minY + 120))
+            }),
+            (52, "close", { [weak self] in self?.popover.close() }),
+            (56, "open again", { [weak self] in self?.showPopover() }),
+        ]
+        var tick = 0
+        var wrong = 0
+        var last = ""
+        var opened: (at: Int, frame: NSRect)?
+        // Read right after each step in the same pass of the run loop, and then every quarter second.
+        let look: (String) -> Void = { [weak self] when in
+            guard let self, let button = self.item.button, let home = button.window,
+                  let window = self.popover.contentViewController?.view.window, self.popover.isShown else { return }
+            let icon = home.convertToScreen(button.convert(button.bounds, to: nil))
+            let frame = window.frame
+            let screen = (home.screen ?? NSScreen.main)?.frame ?? .zero
+            // The popover's window ends where its arrow touches the icon; a point or two of overlap is the arrow's tip.
+            let above = frame.maxY - icon.minY
+            var verdict = ""
+            if above > 4 || frame.maxY > screen.maxY { verdict += "  TOO HIGH by \(Int(above))" }
+            // (A point of rounding between the first measure and SwiftUI's own is not a move anyone sees.)
+            if let first = opened, tick - first.at <= 6, abs(frame.width - first.frame.width) > 2 || abs(frame.height - first.frame.height) > 2 {
+                verdict += "  SETTLED LATE (opened at \(Int(first.frame.width))×\(Int(first.frame.height)))"
+            }
+            let line = "popover y \(Int(frame.minY))…\(Int(frame.maxY)) (\(Int(frame.width))×\(Int(frame.height)), told \(Int(self.popover.contentSize.width))×\(Int(self.popover.contentSize.height)))  icon bottom \(Int(icon.minY))  screen top \(Int(screen.maxY))\(verdict)"
+            if line != last { print("\(when) \(line)"); last = line }
+            if !verdict.isEmpty { wrong += 1 }
+        }
+        Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { _ in
+            MainActor.assumeIsolated {
+                tick += 1
+                for step in steps where step.at == tick {
+                    print("-- \(step.what)")
+                    step.run()
+                    if step.what.contains("open"), let window = self.popover.contentViewController?.view.window { opened = (tick, window.frame) }
+                    last = ""   // every step says where the popover is, also when that is where it was
+                    look("at once")
+                    return
+                }
+                look("        ")
+                if tick == 64 {
+                    print(wrong == 0 ? "popover trace ok" : "popover trace FAILED (\(wrong) samples)")
+                    exit(wrong == 0 ? 0 : 1)
+                }
+            }
+        }
+    }
+
     func popoverWillShow(_ notification: Notification) { AppModel.shared.visibleSurfaces += 1 }
-    func popoverDidClose(_ notification: Notification) { AppModel.shared.visibleSurfaces -= 1 }
+    func popoverDidClose(_ notification: Notification) {
+        endWatchingPlacement()
+        AppModel.shared.visibleSurfaces -= 1
+    }
 }
 
 /// Transparent overlay on the status button that turns it into a drop target.
@@ -352,8 +471,10 @@ struct MenuView: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
         }
-        .frame(width: 360)
+        .frame(width: Self.width)
     }
+
+    static let width: CGFloat = 360
 
     // MARK: header
 

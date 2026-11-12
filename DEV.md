@@ -16,11 +16,22 @@ dist/Tailbolt.app/Contents/MacOS/Tailbolt --snapshot <dir> [files…]   # render
 # Pairing: tailbolt-cli serve --port 48498 --pairs  +  tailbolt-cli pair <own tailscale ip>:48498 [--revoke]
 .build/release/Tailbolt --onboarding-preview [dir]   # just the setup assistant (no server/hotkeys); with <dir>: walks all pages by key, PNG each
 .build/release/Tailbolt --onboarding | --no-onboarding   # force / suppress the first-run assistant
+.build/release/Tailbolt --popover-trace   # opens the menu-bar popover (example devices), changes its height, shoves it up once;
+                                          # prints where it sits against the icon, exit 1 on "TOO HIGH" / "SETTLED LATE"
 ```
 
 - Always build with the **26.5 SDK** (`SDKROOT`); the 27 SDK needs Xcode's SwiftUI macro plugin.
+  With Xcode selected (`xcode-select -p` → `/Applications/Xcode.app/…`) a bare `swift build` ignores `SDKROOT`
+  and takes Xcode's newest SDK: put `DEVELOPER_DIR=/Library/Developer/CommandLineTools` in front
+  (`scripts/build-app.sh` does it itself).
+- **The popover is told its size** (`host.sizingOptions = [.preferredContentSize]` and `popover.contentSize`
+  before `show`, in `MenuBar.swift`). Left to the hosting view's layout constraints the popover opened at
+  AppKit's stock 320 × 320 and was stretched afterwards without knowing it; on macOS 26 on a MacBook with a
+  notch that stretching went upwards, out of the screen (2.3.2). `keepBelowIcon` pulls it back if it ever
+  ends up above the icon again. Check with `--popover-trace`.
 - End-to-end test on one machine: `tailbolt-cli serve --port 48500 --dir /tmp/recv &` then
-  `tailbolt-cli send 127.0.0.1:48500 <files>`; compare with `diff -r` / `cmp`.
+  `tailbolt-cli send <own-tailscale-ip>:48500 <files>`; compare with `diff -r` / `cmp`.
+  (Not `127.0.0.1`: since 2.3.1 the receiver turns loopback away, the sender then reports "Connection closed".)
   The running app on this Mac can be targeted via its tailscale IP (`tailbolt-cli send <own-tailscale-ip> …`).
 - The Tailscale CLI (`/Applications/Tailscale.app/Contents/MacOS/Tailscale`) must be run with
   `TAILSCALE_BE_CLI=1` (see `Tailnet.cliProcess`) or it tries to launch the GUI.

@@ -388,6 +388,13 @@ final class AppModel {
         rebuildDevices()
     }
 
+    /// Dev/QA (`--popover-trace`): only the first `count` example devices (nil = all), to change how tall the
+    /// popover's content is while it is open.
+    func debugLimitDevices(_ count: Int?) {
+        rebuildDevices()
+        if let count { devices = Array(devices.prefix(count)) }
+    }
+
     func debugSeen(_ peer: TailnetPeer) {
         seen[peer.id] = (HelloInfo(name: peer.displayName, os: peer.os, app: ""), Date())
         rebuildDevices()
