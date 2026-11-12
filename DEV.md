@@ -31,7 +31,8 @@ dist/Tailbolt.app/Contents/MacOS/Tailbolt --snapshot <dir> [files…]   # render
   ends up above the icon again. Check with `--popover-trace`.
 - End-to-end test on one machine: `tailbolt-cli serve --port 48500 --dir /tmp/recv &` then
   `tailbolt-cli send <own-tailscale-ip>:48500 <files>`; compare with `diff -r` / `cmp`.
-  (Not `127.0.0.1`: since 2.3.1 the receiver turns loopback away, the sender then reports "Connection closed".)
+  (`127.0.0.1` only with `TAILBOLT_ALLOW_LOOPBACK=1` in front of `serve`: since 2.3.1 the receiver turns
+  loopback away, and the sender then reports "Connection closed".)
   The running app on this Mac can be targeted via its tailscale IP (`tailbolt-cli send <own-tailscale-ip> …`).
 - The Tailscale CLI (`/Applications/Tailscale.app/Contents/MacOS/Tailscale`) must be run with
   `TAILSCALE_BE_CLI=1` (see `Tailnet.cliProcess`) or it tries to launch the GUI.
